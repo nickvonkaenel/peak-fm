@@ -36,14 +36,12 @@ const TAU_HIGH: f32 = 0.07; // 70ms time constant (uniform across all frequencie
 
 /// Pre-computed analysis parameters for constant-Q processing
 struct AnalysisParams {
-    display_frequencies: Vec<f32>,
     octave_bands: Vec<OctaveBand>,
     ema_coefficients: Vec<f32>,
 }
 
 /// Octave band definition for constant-Q analysis
 struct OctaveBand {
-    freq_center: f32,
     bin_low_frac: f32,  // Fractional bin index (lower bound)
     bin_high_frac: f32, // Fractional bin index (upper bound)
 }
@@ -52,7 +50,6 @@ struct OctaveBand {
 #[derive(Clone, Debug)]
 pub struct AnalyzerFrame {
     pub bands: Vec<f32>,
-    pub timestamp: Instant,
 }
 
 /// The FFT processor - runs in dedicated thread
@@ -65,7 +62,7 @@ pub struct SpectrumAnalyzer {
     window: Vec<f32>,
     previous_magnitudes: Vec<f32>,
     last_update: Instant,
-    scratch_buffer: Vec<Complex<f32>>,
+    output_buffer: Vec<Complex<f32>>,
     input_buffer: Vec<f32>,
     params: Option<AnalysisParams>, // Pre-computed constant-Q analysis parameters
 }
@@ -81,8 +78,7 @@ impl SpectrumAnalyzer {
         // Pre-compute Hann window
         let window = Self::create_hann_window(fft_size);
 
-        // Calculate output buffer size (FFT size / 2 + 1 for real FFT)
-        let output_len = fft_size / 2 + 1;
+        let output_buffer = fft.make_output_vec();
 
         Self {
             config,
@@ -93,7 +89,7 @@ impl SpectrumAnalyzer {
             window,
             previous_magnitudes: Vec::new(),
             last_update: Instant::now(),
-            scratch_buffer: vec![Complex::default(); output_len],
+            output_buffer,
             input_buffer: vec![0.0; fft_size],
             params: None, // Initialized lazily on first push_samples call
         }
@@ -142,10 +138,7 @@ impl SpectrumAnalyzer {
         let bands = self.process_fft(num_bands);
         self.last_update = Instant::now();
 
-        Some(AnalyzerFrame {
-            bands,
-            timestamp: Instant::now(),
-        })
+        Some(AnalyzerFrame { bands })
     }
 
     /// Perform FFT on accumulated buffer and map to frequency bands
@@ -158,13 +151,10 @@ impl SpectrumAnalyzer {
         }
 
         // Perform FFT
-        let output_len = self.config.fft_size / 2 + 1;
-        let mut output = vec![Complex::default(); output_len];
-
         // Process FFT (input is real, output is complex)
         if self
             .fft
-            .process(&mut self.input_buffer, &mut output)
+            .process(&mut self.input_buffer, &mut self.output_buffer)
             .is_err()
         {
             // On error, return empty bands
@@ -174,7 +164,11 @@ impl SpectrumAnalyzer {
         // Extract magnitudes from FFT output and normalize by FFT size
         // This scales the output to be independent of FFT size
         let fft_scale = 2.0 / self.config.fft_size as f32;
-        let mut magnitudes: Vec<f32> = output.iter().map(|c| c.norm() * fft_scale).collect();
+        let mut magnitudes: Vec<f32> = self
+            .output_buffer
+            .iter()
+            .map(|c| c.norm() * fft_scale)
+            .collect();
 
         // Apply 4.5 dB/octave slope correction
         self.apply_slope(&mut magnitudes);
@@ -354,7 +348,6 @@ impl SpectrumAnalyzer {
                 let bin_high_frac = freq_high / bin_hz;
 
                 OctaveBand {
-                    freq_center,
                     bin_low_frac,
                     bin_high_frac,
                 }
@@ -403,7 +396,6 @@ impl SpectrumAnalyzer {
         );
 
         AnalysisParams {
-            display_frequencies,
             octave_bands,
             ema_coefficients,
         }
@@ -455,5 +447,26 @@ mod tests {
         let mono_in = vec![1.0, 2.0, 3.0];
         let mono_out = SpectrumAnalyzer::mixdown_to_mono(&mono_in, 1);
         assert_eq!(mono_in, mono_out);
+    }
+
+    #[test]
+    fn test_process_fft_reuses_output_buffer() {
+        let config = AnalyzerConfig {
+            fft_size: 64,
+            ..AnalyzerConfig::default()
+        };
+        let mut analyzer = SpectrumAnalyzer::new(config);
+        analyzer.params = Some(SpectrumAnalyzer::initialize_params(8, &analyzer.config));
+
+        for (index, sample) in analyzer.ring_buffer.iter_mut().enumerate() {
+            *sample = (2.0 * std::f32::consts::PI * index as f32 / 8.0).sin();
+        }
+
+        let output_ptr = analyzer.output_buffer.as_ptr();
+        let bands = analyzer.process_fft(8);
+
+        assert_eq!(analyzer.output_buffer.as_ptr(), output_ptr);
+        assert_eq!(bands.len(), 8);
+        assert!(bands.iter().all(|band| band.is_finite()));
     }
 }

@@ -1,34 +1,16 @@
-use lofty::file::{AudioFile as LoftyAudioFile, TaggedFileExt};
+use lofty::file::AudioFile as LoftyAudioFile;
 use lofty::probe::Probe;
-use lofty::tag::Accessor;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::time::Duration;
 
-/// Broadcast Wave Format fields: (originator, originator_reference,
-/// origination_date, origination_time).
-type BwfFields = (
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-);
-
 #[derive(Clone, Debug, Default)]
 pub struct Metadata {
-    pub title: Option<String>,
-    pub artist: Option<String>,
-    pub album: Option<String>,
-    pub year: Option<u32>,
     pub duration: Option<Duration>,
-    pub bitrate: Option<u32>,
     pub sample_rate: Option<u32>,
     pub channels: Option<u8>,
     pub bwf_description: Option<String>,
-    pub bwf_originator: Option<String>,
-    pub bwf_origination_date: Option<String>,
-    pub bwf_origination_time: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -57,42 +39,23 @@ impl Metadata {
 
         match result {
             Ok(tagged_file) => {
-                let tag = tagged_file
-                    .primary_tag()
-                    .or_else(|| tagged_file.first_tag());
-
-                let title = tag.and_then(|t| t.title().map(|s| s.to_string()));
-                let artist = tag.and_then(|t| t.artist().map(|s| s.to_string()));
-                let album = tag.and_then(|t| t.album().map(|s| s.to_string()));
-                let year = tag.and_then(|t| t.year());
-
                 let properties = tagged_file.properties();
                 let duration = Some(properties.duration());
-                let bitrate = properties.audio_bitrate();
                 let sample_rate = properties.sample_rate();
                 let channels = properties.channels();
 
                 // Try to parse BWF metadata for WAV files
-                let (bwf_description, bwf_originator, bwf_origination_date, bwf_origination_time) =
-                    if path.extension().and_then(|e| e.to_str()) == Some("wav") {
-                        Self::parse_bwf_metadata(path).unwrap_or((None, None, None, None))
-                    } else {
-                        (None, None, None, None)
-                    };
+                let bwf_description = if path.extension().and_then(|e| e.to_str()) == Some("wav") {
+                    Self::parse_bwf_description(path).unwrap_or(None)
+                } else {
+                    None
+                };
 
                 Ok(Self {
-                    title,
-                    artist,
-                    album,
-                    year,
                     duration,
-                    bitrate,
                     sample_rate,
                     channels,
                     bwf_description,
-                    bwf_originator,
-                    bwf_origination_date,
-                    bwf_origination_time,
                 })
             }
             Err(_) => {
@@ -157,37 +120,28 @@ impl Metadata {
         };
 
         // Try to get BWF if it's a WAV file
-        let (bwf_description, bwf_originator, bwf_origination_date, bwf_origination_time) =
-            if path.extension().and_then(|e| e.to_str()) == Some("wav") {
-                Self::parse_bwf_metadata(path).unwrap_or((None, None, None, None))
-            } else {
-                (None, None, None, None)
-            };
+        let bwf_description = if path.extension().and_then(|e| e.to_str()) == Some("wav") {
+            Self::parse_bwf_description(path).unwrap_or(None)
+        } else {
+            None
+        };
 
         Ok(Self {
-            title: None,
-            artist: None,
-            album: None,
-            year: None,
             duration,
-            bitrate: None,
             sample_rate: track.codec_params.sample_rate,
             channels: track.codec_params.channels.map(|c| c.count() as u8),
             bwf_description,
-            bwf_originator,
-            bwf_origination_date,
-            bwf_origination_time,
         })
     }
 
-    fn parse_bwf_metadata(path: &Path) -> Result<BwfFields, String> {
+    fn parse_bwf_description(path: &Path) -> Result<Option<String>, String> {
         let mut file = File::open(path).map_err(|e| e.to_string())?;
         let mut buf = [0u8; 12];
 
         // Read RIFF header
         file.read_exact(&mut buf).map_err(|e| e.to_string())?;
         if &buf[0..4] != b"RIFF" || &buf[8..12] != b"WAVE" {
-            return Ok((None, None, None, None));
+            return Ok(None);
         }
 
         // Search for 'bext' chunk
@@ -206,52 +160,22 @@ impl Metadata {
             ]);
 
             if chunk_id == b"bext" {
-                // Found bext chunk - parse it
+                // The BWF description is the first 256 bytes of the bext chunk.
                 let mut bext_data = vec![0u8; chunk_size as usize];
                 file.read_exact(&mut bext_data).map_err(|e| e.to_string())?;
+                let Some(description_data) = bext_data.get(..256) else {
+                    return Ok(None);
+                };
 
-                // Description (256 bytes)
                 let description = Self::sanitize_string(
-                    String::from_utf8_lossy(&bext_data[0..256]).trim_end_matches('\0'),
+                    String::from_utf8_lossy(description_data).trim_end_matches('\0'),
                 );
 
-                // Originator (32 bytes)
-                let originator = Self::sanitize_string(
-                    String::from_utf8_lossy(&bext_data[256..288]).trim_end_matches('\0'),
-                );
-
-                // OriginationDate (10 bytes, starting at offset 320)
-                let origination_date = Self::sanitize_string(
-                    String::from_utf8_lossy(&bext_data[320..330]).trim_end_matches('\0'),
-                );
-
-                // OriginationTime (8 bytes, starting at offset 330)
-                let origination_time = Self::sanitize_string(
-                    String::from_utf8_lossy(&bext_data[330..338]).trim_end_matches('\0'),
-                );
-
-                return Ok((
-                    if description.is_empty() {
-                        None
-                    } else {
-                        Some(description)
-                    },
-                    if originator.is_empty() {
-                        None
-                    } else {
-                        Some(originator)
-                    },
-                    if origination_date.is_empty() {
-                        None
-                    } else {
-                        Some(origination_date)
-                    },
-                    if origination_time.is_empty() {
-                        None
-                    } else {
-                        Some(origination_time)
-                    },
-                ));
+                return Ok(if description.is_empty() {
+                    None
+                } else {
+                    Some(description)
+                });
             }
 
             // Skip to next chunk
@@ -264,34 +188,7 @@ impl Metadata {
             }
         }
 
-        Ok((None, None, None, None))
-    }
-
-    pub fn format_duration(&self) -> String {
-        if let Some(duration) = self.duration {
-            let secs = duration.as_secs();
-            let mins = secs / 60;
-            let secs = secs % 60;
-            format!("{:02}:{:02}", mins, secs)
-        } else {
-            "--:--".to_string()
-        }
-    }
-
-    pub fn format_bitrate(&self) -> String {
-        if let Some(bitrate) = self.bitrate {
-            format!("{} kbps", bitrate)
-        } else {
-            "N/A".to_string()
-        }
-    }
-
-    pub fn format_sample_rate(&self) -> String {
-        if let Some(sample_rate) = self.sample_rate {
-            format!("{} Hz", sample_rate)
-        } else {
-            "N/A".to_string()
-        }
+        Ok(None)
     }
 }
 
@@ -476,5 +373,49 @@ impl MinimalMetadata {
             channels,
             bwf_description,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_bwf_file(path: &Path, description_bytes: &[u8]) {
+        let chunk_size = description_bytes.len() as u32;
+        let riff_size = 4 + 8 + chunk_size;
+        let mut contents = Vec::new();
+        contents.extend_from_slice(b"RIFF");
+        contents.extend_from_slice(&riff_size.to_le_bytes());
+        contents.extend_from_slice(b"WAVE");
+        contents.extend_from_slice(b"bext");
+        contents.extend_from_slice(&chunk_size.to_le_bytes());
+        contents.extend_from_slice(description_bytes);
+        std::fs::write(path, contents).expect("write BWF fixture");
+    }
+
+    #[test]
+    fn parses_bwf_description_without_unused_provenance_fields() {
+        let temp_dir = tempfile::tempdir().expect("create temp directory");
+        let path = temp_dir.path().join("described.wav");
+        let mut description = [0u8; 256];
+        description[..11].copy_from_slice(b"Field note!");
+        write_bwf_file(&path, &description);
+
+        assert_eq!(
+            Metadata::parse_bwf_description(&path).expect("parse BWF description"),
+            Some("Field note!".to_string())
+        );
+    }
+
+    #[test]
+    fn short_bext_chunk_is_ignored_instead_of_panicking() {
+        let temp_dir = tempfile::tempdir().expect("create temp directory");
+        let path = temp_dir.path().join("short.wav");
+        write_bwf_file(&path, b"short");
+
+        assert_eq!(
+            Metadata::parse_bwf_description(&path).expect("parse short bext chunk"),
+            None
+        );
     }
 }

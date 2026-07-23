@@ -394,7 +394,7 @@ Other state locations:
 cargo fmt --check
 cargo check --locked --all-targets
 cargo test --locked --all-targets
-cargo clippy --locked --all-targets -- -D clippy::all
+cargo clippy --locked --all-targets -- -D warnings -D clippy::all
 cargo build --locked --release --bins
 ```
 

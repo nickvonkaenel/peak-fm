@@ -7,7 +7,6 @@ pub struct Database {
 
 #[derive(Debug)]
 pub struct AudioFileRecord {
-    pub id: Option<i64>,
     pub file_path: String,
     pub file_name: String,
     pub description: Option<String>,
@@ -76,51 +75,6 @@ impl Database {
             .map_err(|e| format!("Failed to drop tables: {}", e))?;
         self.init_schema()?;
         Ok(())
-    }
-
-    pub fn get_file_by_path(&self, path: &str) -> Result<Option<AudioFileRecord>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, file_path, file_name, description, sample_rate, channels
-             FROM audio_files WHERE file_path = ?1",
-            )
-            .map_err(|e| e.to_string())?;
-
-        let result = stmt.query_row(params![path], |row| {
-            Ok(AudioFileRecord {
-                id: Some(row.get(0)?),
-                file_path: row.get(1)?,
-                file_name: row.get(2)?,
-                description: row.get(3)?,
-                sample_rate: row.get(4)?,
-                channels: row.get(5)?,
-            })
-        });
-
-        match result {
-            Ok(file) => Ok(Some(file)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.to_string()),
-        }
-    }
-
-    pub fn insert_file(&self, file: &AudioFileRecord) -> Result<i64, String> {
-        self.conn
-            .execute(
-                "INSERT INTO audio_files (file_path, file_name, description, sample_rate, channels)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![
-                    file.file_path,
-                    file.file_name,
-                    file.description,
-                    file.sample_rate,
-                    file.channels,
-                ],
-            )
-            .map_err(|e| e.to_string())?;
-
-        Ok(self.conn.last_insert_rowid())
     }
 
     /// Insert multiple files in a single batch operation
@@ -227,21 +181,11 @@ impl Database {
         Ok(())
     }
 
-    pub fn mark_incomplete(&self) -> Result<(), String> {
-        self.conn
-            .execute(
-                "DELETE FROM db_metadata WHERE key IN ('complete', 'completed_at')",
-                [],
-            )
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
     pub fn get_all_files(&self) -> Result<Vec<AudioFileRecord>, String> {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, file_path, file_name, description, sample_rate, channels
+                "SELECT file_path, file_name, description, sample_rate, channels
              FROM audio_files",
             )
             .map_err(|e| e.to_string())?;
@@ -249,12 +193,11 @@ impl Database {
         let files = stmt
             .query_map([], |row| {
                 Ok(AudioFileRecord {
-                    id: Some(row.get(0)?),
-                    file_path: row.get(1)?,
-                    file_name: row.get(2)?,
-                    description: row.get(3)?,
-                    sample_rate: row.get(4)?,
-                    channels: row.get(5)?,
+                    file_path: row.get(0)?,
+                    file_name: row.get(1)?,
+                    description: row.get(2)?,
+                    sample_rate: row.get(3)?,
+                    channels: row.get(4)?,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -287,7 +230,7 @@ impl Database {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, file_path, file_name, description, sample_rate, channels
+                "SELECT file_path, file_name, description, sample_rate, channels
              FROM audio_files
              ORDER BY file_path
              LIMIT ?1 OFFSET ?2",
@@ -297,12 +240,11 @@ impl Database {
         let files = stmt
             .query_map(params![limit, offset], |row| {
                 Ok(AudioFileRecord {
-                    id: Some(row.get(0)?),
-                    file_path: row.get(1)?,
-                    file_name: row.get(2)?,
-                    description: row.get(3)?,
-                    sample_rate: row.get(4)?,
-                    channels: row.get(5)?,
+                    file_path: row.get(0)?,
+                    file_name: row.get(1)?,
+                    description: row.get(2)?,
+                    sample_rate: row.get(3)?,
+                    channels: row.get(4)?,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -315,12 +257,52 @@ impl Database {
 
         Ok(result)
     }
+}
 
-    pub fn get_file_count(&self) -> Result<i64, String> {
-        let count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM audio_files", [], |row| row.get(0))
-            .map_err(|e| e.to_string())?;
-        Ok(count)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch_insert_round_trips_records_without_exposing_database_ids() {
+        let temp_dir = tempfile::tempdir().expect("create temp directory");
+        let db = Database::open(temp_dir.path().join("audio.db")).expect("open database");
+        let records = vec![
+            AudioFileRecord {
+                file_path: "b.wav".to_string(),
+                file_name: "b.wav".to_string(),
+                description: Some("second".to_string()),
+                sample_rate: Some(48_000),
+                channels: Some(2),
+            },
+            AudioFileRecord {
+                file_path: "a.wav".to_string(),
+                file_name: "a.wav".to_string(),
+                description: None,
+                sample_rate: Some(44_100),
+                channels: Some(1),
+            },
+        ];
+
+        db.insert_files_batch(&records).expect("insert records");
+
+        let loaded = db.get_files_batch(10, 0).expect("load records");
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].file_path, "a.wav");
+        assert_eq!(loaded[0].sample_rate, Some(44_100));
+        assert_eq!(loaded[1].file_path, "b.wav");
+        assert_eq!(loaded[1].description.as_deref(), Some("second"));
+    }
+
+    #[test]
+    fn rebuilding_database_clears_completion_marker() {
+        let temp_dir = tempfile::tempdir().expect("create temp directory");
+        let db = Database::open(temp_dir.path().join("audio.db")).expect("open database");
+
+        db.mark_complete().expect("mark database complete");
+        assert!(db.is_complete().expect("read completion marker"));
+
+        db.rebuild_database().expect("rebuild database");
+        assert!(!db.is_complete().expect("read completion marker"));
     }
 }

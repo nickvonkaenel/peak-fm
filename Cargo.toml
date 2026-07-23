@@ -7,6 +7,7 @@ autobins = false
 default-run = "pk"
 description = "A fast, vim-like terminal file manager built around Miller columns"
 readme = "README.md"
+documentation = "https://docs.rs/peak-fm"
 license = "MIT"
 keywords = ["file-manager", "terminal", "tui", "vim"]
 categories = ["command-line-utilities", "filesystem"]

@@ -25,15 +25,6 @@ pub enum FsOperation {
 }
 
 impl FsOperation {
-    pub fn order(&self) -> u8 {
-        match self {
-            FsOperation::Delete { .. } => 0,
-            FsOperation::Rename { .. } => 1,
-            FsOperation::Copy { .. } => 2,
-            FsOperation::Create { .. } => 3,
-        }
-    }
-
     #[allow(dead_code)]
     pub fn description(&self) -> String {
         match self {

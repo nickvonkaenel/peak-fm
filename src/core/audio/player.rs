@@ -252,7 +252,6 @@ impl AudioPlayer {
 
         // Check channel count and convert 5-channel to 6-channel if needed
         let channels = decoded.channels();
-        let sample_rate = decoded.sample_rate();
         let converted = decoded.convert_samples::<f32>();
 
         // Create new sink - suppress stderr from rodio/cpal when device is unavailable
@@ -268,11 +267,11 @@ impl AudioPlayer {
                 // This ensures the analyzer sees the actual pitched audio being played
                 if channels == 5 {
                     let pitched = FiveToSixChannel::new(converted).speed(pitch);
-                    let tapped = TappedSource::new(pitched, sender.clone(), 6, sample_rate);
+                    let tapped = TappedSource::new(pitched, sender.clone(), 6);
                     Box::new(tapped)
                 } else {
                     let pitched = converted.speed(pitch);
-                    let tapped = TappedSource::new(pitched, sender.clone(), channels, sample_rate);
+                    let tapped = TappedSource::new(pitched, sender.clone(), channels);
                     Box::new(tapped)
                 }
             } else {
@@ -374,37 +373,10 @@ impl AudioPlayer {
         }
     }
 
-    pub fn get_volume(&self) -> f32 {
-        *self.volume.lock()
-    }
-
     pub fn set_pitch(&self, pitch: f32) {
         *self.pitch.lock() = pitch;
         // Note: Pitch change requires restarting playback with new source
         // The app will handle this by calling play() again when pitch changes
-    }
-
-    pub fn get_pitch(&self) -> f32 {
-        *self.pitch.lock()
-    }
-
-    // Freeze the current position by committing elapsed time to paused_position
-    // This should be called before changing pitch to avoid position jumps
-    pub fn freeze_position(&self) {
-        if let Some(start_time) = *self.play_start_time.lock() {
-            let elapsed = start_time.elapsed();
-            let pitch = *self.pitch.lock();
-            let adjusted_secs = elapsed.as_secs_f32() * pitch;
-
-            // Update paused position in a single lock scope
-            {
-                let mut paused_pos = self.paused_position.lock();
-                *paused_pos += Duration::from_secs_f32(adjusted_secs);
-            }
-
-            // Reset start time to now
-            *self.play_start_time.lock() = Some(Instant::now());
-        }
     }
 
     pub fn current_file(&self) -> Option<PathBuf> {
@@ -477,7 +449,6 @@ impl AudioPlayer {
 
         // Check channel count and convert 5-channel to 6-channel if needed
         let channels = decoded.channels();
-        let sample_rate = decoded.sample_rate();
         let converted = decoded.convert_samples::<f32>();
 
         // Skip to the desired position
@@ -496,11 +467,11 @@ impl AudioPlayer {
                 // This ensures the analyzer sees the actual pitched audio being played
                 if channels == 5 {
                     let pitched = FiveToSixChannel::new(skipped).speed(pitch);
-                    let tapped = TappedSource::new(pitched, sender.clone(), 6, sample_rate);
+                    let tapped = TappedSource::new(pitched, sender.clone(), 6);
                     Box::new(tapped)
                 } else {
                     let pitched = skipped.speed(pitch);
-                    let tapped = TappedSource::new(pitched, sender.clone(), channels, sample_rate);
+                    let tapped = TappedSource::new(pitched, sender.clone(), channels);
                     Box::new(tapped)
                 }
             } else {

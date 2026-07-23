@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use super::buffer::Buffer;
 use super::{compute_diff, topological_sort, BufferLine, FsOperation};
@@ -52,7 +51,6 @@ impl OperationSignature {
 #[derive(Clone, Debug)]
 struct OperationMetadata {
     origin_dir: PathBuf,
-    timestamp: Instant,
 }
 
 /// Global store for pending filesystem operations across all directories
@@ -88,14 +86,12 @@ impl GlobalOperationStore {
         self.operations_by_dir.insert(dir.clone(), ops.clone());
 
         // Update metadata
-        let now = Instant::now();
         for op in ops {
             let sig = OperationSignature::from_operation(&op);
             self.metadata.insert(
                 sig,
                 OperationMetadata {
                     origin_dir: dir.clone(),
-                    timestamp: now,
                 },
             );
         }

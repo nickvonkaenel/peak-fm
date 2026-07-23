@@ -16,7 +16,6 @@ where
     buffer: Vec<f32>,
     buffer_size: usize,
     channels: u16,
-    sample_rate: u32,
 }
 
 impl<S> TappedSource<S>
@@ -29,21 +28,13 @@ where
     /// * `inner` - The source to wrap
     /// * `sample_sender` - Channel to send (samples, channels, sample_rate) for FFT analysis
     /// * `channels` - Number of audio channels
-    /// * `sample_rate` - Sample rate in Hz
-    /// * `buffer_size` - Number of samples to accumulate before sending (default: 2048)
-    pub fn new(
-        inner: S,
-        sample_sender: SyncSender<(Vec<f32>, u16, u32)>,
-        channels: u16,
-        sample_rate: u32,
-    ) -> Self {
+    pub fn new(inner: S, sample_sender: SyncSender<(Vec<f32>, u16, u32)>, channels: u16) -> Self {
         Self {
             inner,
             sample_sender,
             buffer: Vec::with_capacity(2048),
             buffer_size: 2048,
             channels,
-            sample_rate,
         }
     }
 

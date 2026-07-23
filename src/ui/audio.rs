@@ -819,7 +819,7 @@ fn render_waveform_fsf(frame: &mut Frame, area: Rect, app: &App, show_analyzer: 
 
     // Build waveform content
     let waveform_lines: Vec<Line> = if let Some(waveform) = &state.current_waveform {
-        if waveform.peaks.is_empty() {
+        if waveform.is_empty() {
             vec![]
         } else {
             let available_width = waveform_width;
@@ -845,17 +845,7 @@ fn render_waveform_fsf(frame: &mut Frame, area: Rect, app: &App, show_analyzer: 
 
             // Calculate current playback position
             let current_pos = if state.is_playing() || state.is_paused() {
-                if let Some(metadata) = &state.current_metadata {
-                    if let Some(total) = metadata.duration {
-                        let pos = state.get_elapsed();
-                        let progress = pos.as_secs_f32() / total.as_secs_f32();
-                        (progress * available_width as f32) as usize
-                    } else {
-                        0
-                    }
-                } else {
-                    0
-                }
+                (state.get_progress() * available_width as f32) as usize
             } else {
                 0
             };

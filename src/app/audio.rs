@@ -39,15 +39,6 @@ struct ParsedQuery {
     exclusions: Vec<String>,
 }
 
-/// Sort mode for the file list
-#[derive(Clone, Copy, PartialEq, Default)]
-pub enum SortMode {
-    #[default]
-    Normal,
-    AlphabeticalAsc,
-    AlphabeticalDesc,
-}
-
 /// State for audio browser mode
 pub struct AudioModeState {
     pub files: Vec<AudioFile>,
@@ -56,7 +47,6 @@ pub struct AudioModeState {
     pub scroll_offset: usize,
     pub search_query: String,
     previous_query: String,
-    pub sort_mode: SortMode,
     pub browse_mode: bool,
     is_shuffled: bool,
 
@@ -133,7 +123,6 @@ impl AudioModeState {
             scroll_offset: 0,
             search_query: String::new(),
             previous_query: String::new(),
-            sort_mode: SortMode::Normal,
             browse_mode: false,
             is_shuffled: false,
             player,
@@ -727,10 +716,8 @@ impl AudioModeState {
         }
 
         if let Some(player) = &self.player {
-            if player.is_playing() {
-                player.pause();
-            } else if player.is_paused() {
-                player.resume();
+            if player.is_playing() || player.is_paused() {
+                player.toggle_pause();
             } else if player.is_stopped() {
                 self.play_selected();
             }
@@ -1032,11 +1019,6 @@ impl AudioModeState {
         self.autoplay = !self.autoplay;
     }
 
-    /// Toggle waveform display
-    pub fn toggle_waveform(&mut self) {
-        self.show_waveform = !self.show_waveform;
-    }
-
     /// Toggle info panel display
     pub fn toggle_info(&mut self) {
         self.show_info = !self.show_info;
@@ -1329,15 +1311,6 @@ impl AudioModeState {
         0.0
     }
 
-    /// Get playback elapsed time
-    pub fn get_elapsed(&self) -> Duration {
-        if let Some(player) = &self.player {
-            player.elapsed()
-        } else {
-            Duration::ZERO
-        }
-    }
-
     /// Check if currently playing
     pub fn is_playing(&self) -> bool {
         self.player
@@ -1429,116 +1402,6 @@ fn scan_audio_files(root: &PathBuf, sender: Sender<AudioFile>) {
     });
 }
 
-/// Scan a directory and index files into the database
-fn scan_audio_files_with_indexing(root: &PathBuf, sender: Sender<AudioFile>) {
-    use crate::core::audio::{AudioFileRecord, MinimalMetadata};
-    use ignore::WalkBuilder;
-    use std::fs;
-
-    // Open/create database for this scan root
-    let db = match get_db_path(root) {
-        Some(db_path) => {
-            // Ensure parent directory exists
-            if let Some(parent) = db_path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            match Database::open(&db_path) {
-                Ok(db) => {
-                    // Set performance pragmas
-                    let _ = db.set_pragmas();
-                    // Rebuild database from scratch
-                    let _ = db.rebuild_database();
-                    Some(db)
-                }
-                Err(_) => None,
-            }
-        }
-        None => None,
-    };
-
-    // Start transaction for faster inserts
-    if let Some(ref db) = db {
-        let _ = db.begin_transaction();
-    }
-
-    let walker = WalkBuilder::new(root)
-        .hidden(true) // Skip hidden files/dirs
-        .git_ignore(false)
-        .git_global(false)
-        .git_exclude(false)
-        .build();
-
-    let mut file_count = 0;
-
-    for entry in walker.flatten() {
-        let path = entry.path();
-
-        // Skip directories
-        if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-            continue;
-        }
-
-        // Get filename and skip hidden files
-        let filename = match path.file_name().and_then(|n| n.to_str()) {
-            Some(name) if !name.starts_with('.') => name.to_string(),
-            _ => continue,
-        };
-
-        // Skip non-audio files
-        if !is_audio_file(path) {
-            continue;
-        }
-
-        // Try to get audio metadata
-        let metadata = MinimalMetadata::from_file(path).ok();
-
-        let description = metadata.as_ref().and_then(|m| m.bwf_description.clone());
-
-        // Index into database
-        if let Some(ref db) = db {
-            let record = AudioFileRecord {
-                id: None,
-                file_path: path.to_string_lossy().to_string(),
-                file_name: filename.clone(),
-                description: description.clone(),
-                sample_rate: metadata
-                    .as_ref()
-                    .and_then(|m| m.sample_rate)
-                    .map(|s| s as i32),
-                channels: metadata.as_ref().and_then(|m| m.channels).map(|c| c as i32),
-            };
-
-            let _ = db.insert_file(&record);
-        }
-
-        let audio_file = AudioFile {
-            path: path.to_path_buf(),
-            filename,
-            description,
-        };
-
-        if sender.send(audio_file).is_err() {
-            break;
-        }
-
-        file_count += 1;
-
-        // Commit every 500 files for progress
-        if file_count % 500 == 0 {
-            if let Some(ref db) = db {
-                let _ = db.commit_transaction();
-                let _ = db.begin_transaction();
-            }
-        }
-    }
-
-    // Final commit and mark complete
-    if let Some(ref db) = db {
-        let _ = db.commit_transaction();
-        let _ = db.mark_complete();
-    }
-}
-
 /// Build database in background without sending to UI
 /// Sends progress updates every 100 files through the status_sender
 /// Uses parallel processing for metadata extraction
@@ -1623,7 +1486,6 @@ fn build_database_silent(
                 let description = metadata.as_ref().and_then(|m| m.bwf_description.clone());
 
                 let record = AudioFileRecord {
-                    id: None,
                     file_path: path.to_string_lossy().to_string(),
                     file_name: filename,
                     description,

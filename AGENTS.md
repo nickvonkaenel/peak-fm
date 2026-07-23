@@ -21,6 +21,9 @@ cargo build --release
 # Run tests
 cargo test
 
+# Enforce a warning-free build
+cargo clippy --locked --all-targets -- -D warnings -D clippy::all
+
 # Run with specific flags
 cargo run -- [OPTIONS] [PATH]
 # Options:

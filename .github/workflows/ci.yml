@@ -46,11 +46,9 @@ jobs:
       - name: Test
         run: cargo test --locked --all-targets
 
-      # Gates on clippy lints only (-D clippy::all). rustc warnings such as
-      # dead_code are left non-fatal, matching the project's reserved/WIP
-      # code style.
+      # Keep public builds free of both rustc and Clippy warnings.
       - name: Clippy
-        run: cargo clippy --locked --all-targets -- -D clippy::all
+        run: cargo clippy --locked --all-targets -- -D warnings -D clippy::all
 
       - name: Smoke test both commands
         run: |

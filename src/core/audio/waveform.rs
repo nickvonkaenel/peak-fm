@@ -610,27 +610,4 @@ impl WaveformData {
 
         Ok(waveform)
     }
-
-    pub fn clear_cache() -> Result<(), String> {
-        // Get cache directory
-        let cache_dir = if let Some(home) =
-            std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))
-        {
-            PathBuf::from(home)
-                .join(".cache")
-                .join(APP_DIR_NAME)
-                .join("waveforms")
-        } else {
-            PathBuf::from(".cache").join(APP_DIR_NAME).join("waveforms")
-        };
-
-        // Remove the cache directory and all its contents
-        if cache_dir.exists() {
-            fs::remove_dir_all(&cache_dir).map_err(|e| e.to_string())?;
-            // Recreate the empty directory
-            fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
-        }
-
-        Ok(())
-    }
 }
