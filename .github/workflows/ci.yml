@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # rodio/cpal link against ALSA on Linux.
+      - name: Install ALSA development headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Build
+        run: cargo build --locked --all-targets
+
+      - name: Test
+        run: cargo test --locked --all-targets
+
+      # Gates on clippy lints only (-D clippy::all). rustc warnings such as
+      # dead_code are left non-fatal, matching the project's reserved/WIP
+      # code style.
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D clippy::all
+
+      - name: Smoke test both commands
+        run: |
+          cargo run --locked --bin pk -- --version
+          cargo run --locked --bin peak-fm -- --version
+
+      - name: Verify release package
+        if: runner.os == 'Linux'
+        run: cargo package --locked

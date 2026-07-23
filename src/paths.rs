@@ -1,0 +1,11 @@
+//! Shared product names and on-disk path components.
+
+pub const PRODUCT_NAME: &str = "Peak File Manager";
+pub const APP_DIR_NAME: &str = "peak-fm";
+pub const LEGACY_APP_DIR_NAME: &str = "fm";
+pub const LAST_DIR_FILE_NAME: &str = "peak-fm-lastdir";
+pub const FFMPEG_EDIT_FILE_NAME: &str = "peak-fm-ffmpeg.yaml";
+pub const TRASH_INDEX_FILE_NAME: &str = ".peak-fm-origins.json";
+pub const TRASH_LOCK_FILE_NAME: &str = ".peak-fm-origins.lock";
+pub const IGNORE_FILE_NAME: &str = ".pkignore";
+pub const LEGACY_IGNORE_FILE_NAME: &str = ".fmignore";
