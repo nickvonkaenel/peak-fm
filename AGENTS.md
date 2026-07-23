@@ -109,11 +109,11 @@ The application follows a modular architecture with clear separation of concerns
 
 **Async Operations**: Image loading, git operations (push, commit), and audio waveform generation use background threads with `mpsc` channels polled in the main loop.
 
-**Theme System**: Syntax highlighting themes come from Syntect defaults, a curated subset of `two-face`, and personal `.tmTheme` files loaded from the platform themes directory. The existing `Space`, then `c` picker previews and persists selections. Personal files override same-named bundled themes. Icon colors can map to the selected theme palette when `theme_icons` is enabled.
+**Theme System**: Syntax highlighting themes come from the bundled No Clown Fiesta TextMate adaptation, Syntect defaults, a curated subset of `two-face`, and personal `.tmTheme` files loaded from the platform themes directory. No Clown Fiesta is registered under the stable `noclownfiesta` key and is the default. The existing `Space`, then `c` picker previews and persists selections. Personal files override same-named bundled themes. Icon colors can map to the selected theme palette when `theme_icons` is enabled.
 
 `syntect` and `two-face` are pinned because their embedded assets, versions, and notices move together. After intentionally updating either dependency, update the version in the notice generator, run `cargo run --locked --example generate_third_party_licenses`, and review the regenerated `SYNTAX_THEME_LICENSES.md`.
 
-Personal theme files must not be copied into the repository or a release package without a separate provenance review and an explicit, compatible redistribution license.
+Do not add further third-party personal themes to the repository or release package without a separate provenance and license review. No Clown Fiesta is a maintainer-approved exception despite its upstream repository declaring no license; keep its source, attribution, and license-status notice with the bundled asset.
 
 ## Development Guidelines
 

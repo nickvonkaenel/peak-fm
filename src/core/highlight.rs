@@ -4,6 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{BufReader, Cursor};
 use std::path::Path;
 use std::sync::RwLock;
 use syntect::easy::HighlightLines;
@@ -16,7 +17,10 @@ use crate::paths::themes_dir;
 /// Global syntax set - uses two-face for extensive language support (same as bat)
 static SYNTAX_SET: Lazy<SyntaxSet> = Lazy::new(two_face::syntax::extra_newlines);
 
-pub const DEFAULT_THEME: &str = "base16-ocean.dark";
+const NO_CLOWN_FIESTA_THEME_NAME: &str = "noclownfiesta";
+const NO_CLOWN_FIESTA_THEME: &[u8] = include_bytes!("noclownfiesta.tmTheme");
+
+pub const DEFAULT_THEME: &str = NO_CLOWN_FIESTA_THEME_NAME;
 
 /// Popular themes already shipped by two-face. Keeping this list curated avoids
 /// filling the picker with terminal-specific and deprecated variants.
@@ -56,6 +60,11 @@ fn build_theme_catalog(personal_theme_dir: Option<&Path>) -> ThemeCatalog {
     for name in POPULAR_THEMES {
         themes.insert(name.as_name().to_string(), popular.get(*name).clone());
     }
+
+    let mut reader = BufReader::new(Cursor::new(NO_CLOWN_FIESTA_THEME));
+    let no_clown_fiesta =
+        ThemeSet::load_from_reader(&mut reader).expect("bundled No Clown Fiesta theme must parse");
+    themes.insert(NO_CLOWN_FIESTA_THEME_NAME.to_string(), no_clown_fiesta);
 
     if let Some(directory) = personal_theme_dir {
         load_personal_themes(directory, &mut themes, &mut warnings);
@@ -484,7 +493,7 @@ mod tests {
 "##;
 
     #[test]
-    fn catalog_includes_curated_popular_themes() {
+    fn catalog_includes_bundled_themes() {
         let catalog = build_theme_catalog(None);
         for name in [
             "Dracula",
@@ -495,9 +504,19 @@ mod tests {
             "Nord",
             "OneHalfDark",
             "OneHalfLight",
+            NO_CLOWN_FIESTA_THEME_NAME,
         ] {
             assert!(catalog.themes.contains_key(name), "missing {name}");
         }
+
+        let no_clown_fiesta = catalog.themes.get(NO_CLOWN_FIESTA_THEME_NAME).unwrap();
+        assert_eq!(DEFAULT_THEME, NO_CLOWN_FIESTA_THEME_NAME);
+        assert_eq!(no_clown_fiesta.name.as_deref(), Some("No Clown Fiesta"));
+
+        let foreground = no_clown_fiesta.settings.foreground.unwrap();
+        let background = no_clown_fiesta.settings.background.unwrap();
+        assert_eq!((foreground.r, foreground.g, foreground.b), (209, 209, 209));
+        assert_eq!((background.r, background.g, background.b), (18, 18, 18));
     }
 
     #[test]
@@ -505,20 +524,42 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let nested = dir.path().join("nested");
         fs::create_dir(&nested).unwrap();
-        fs::write(dir.path().join("Dracula.tmTheme"), TEST_THEME).unwrap();
+        fs::write(
+            dir.path()
+                .join(format!("{NO_CLOWN_FIESTA_THEME_NAME}.tmTheme")),
+            TEST_THEME,
+        )
+        .unwrap();
         fs::write(nested.join("personal.tmTheme"), TEST_THEME).unwrap();
         fs::write(dir.path().join("broken.tmTheme"), "not a plist").unwrap();
         fs::write(dir.path().join("ignored.txt"), TEST_THEME).unwrap();
 
         let catalog = build_theme_catalog(Some(dir.path()));
 
-        let dracula = catalog.themes.get("Dracula").unwrap();
-        let foreground = dracula.settings.foreground.unwrap();
+        let no_clown_fiesta = catalog.themes.get(NO_CLOWN_FIESTA_THEME_NAME).unwrap();
+        let foreground = no_clown_fiesta.settings.foreground.unwrap();
         assert_eq!((foreground.r, foreground.g, foreground.b), (1, 2, 3));
         assert!(catalog.themes.contains_key("personal"));
         assert!(!catalog.themes.contains_key("ignored"));
         assert_eq!(catalog.warnings.len(), 1);
         assert!(catalog.warnings[0].contains("broken.tmTheme"));
+    }
+
+    #[test]
+    fn invalid_personal_override_keeps_bundled_theme() {
+        let dir = TempDir::new().unwrap();
+        let override_path = dir
+            .path()
+            .join(format!("{NO_CLOWN_FIESTA_THEME_NAME}.tmTheme"));
+        fs::write(&override_path, "not a plist").unwrap();
+
+        let catalog = build_theme_catalog(Some(dir.path()));
+        let no_clown_fiesta = catalog.themes.get(NO_CLOWN_FIESTA_THEME_NAME).unwrap();
+        let foreground = no_clown_fiesta.settings.foreground.unwrap();
+
+        assert_eq!((foreground.r, foreground.g, foreground.b), (209, 209, 209));
+        assert_eq!(catalog.warnings.len(), 1);
+        assert!(catalog.warnings[0].contains("noclownfiesta.tmTheme"));
     }
 
     #[test]

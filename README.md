@@ -67,12 +67,18 @@ Press `Space`, then `c` to open the syntax-theme picker. Use `j`/`k` or the
 arrow keys for live preview, `Page Up`/`Page Down` for larger jumps, `Enter` to
 save the selection, or `Esc` to cancel.
 
-Peak File Manager includes Syntect's Base16, InspiredGitHub, and Solarized
-themes, plus a curated set from `two-face`: Dracula, GitHub, Gruvbox dark and
-light, Monokai Extended, Nord, and One Half dark and light. Licenses and
-notices supplied through `two-face` are reproduced in
-[Syntax and Theme Licenses](SYNTAX_THEME_LICENSES.md), with
-[upstream provenance maintained by `two-face`](https://github.com/CosmicHorrorDev/two-face/blob/v0.4.5/generated/acknowledgements_full.md).
+Peak File Manager includes the legacy `noclownfiesta` TextMate adaptation
+previously shipped by `fm`, based on
+[No Clown Fiesta by Gustaf Rydholm](https://github.com/aktersnurra/no-clown-fiesta.nvim).
+It is the default and retains the same settings key. The audited upstream
+revision declares no license, so the bundled adaptation is not covered by
+Peak's MIT license; see
+[Syntax and Theme Licenses and Provenance Notices](SYNTAX_THEME_LICENSES.md).
+
+Peak also includes Syntect's Base16, InspiredGitHub, and Solarized themes, plus
+a curated set from `two-face`: Dracula, GitHub, Gruvbox dark and light, Monokai
+Extended, Nord, and One Half dark and light.
+[Upstream provenance for those assets is maintained by `two-face`](https://github.com/CosmicHorrorDev/two-face/blob/v0.4.5/generated/acknowledgements_full.md).
 
 To add a personal TextMate theme:
 
@@ -357,7 +363,7 @@ written to the new location.
 | `show_icons` | `true` | Show file type icons |
 | `colored_icons` | `true` | Color file type icons |
 | `theme_icons` | `true` | Map icon colors to the syntax theme |
-| `theme` | `base16-ocean.dark` | Syntax highlighting theme |
+| `theme` | `noclownfiesta` | Syntax highlighting theme |
 | `search_navigate_on_open` | `true` | Navigate to a search result's directory after opening |
 | `sort_option` | `name` | Default sort order |
 | `git_auto_push` | `false` | Push automatically after a commit |
@@ -404,7 +410,9 @@ Linux, macOS, and Windows. Linux also verifies the Cargo release package.
 ## License
 
 Peak File Manager's original code is available under the [MIT License](LICENSE).
-Bundled third-party syntax and theme assets retain the terms reproduced in
-[Syntax and Theme Licenses](SYNTAX_THEME_LICENSES.md). Personal themes are
-loaded from the user's machine, are not distributed with Peak File Manager,
-and remain subject to their own terms.
+That license does not apply to `src/core/noclownfiesta.tmTheme`. Bundled
+third-party syntax and theme assets—and their attribution or license
+status—are documented in
+[Syntax and Theme Licenses and Provenance Notices](SYNTAX_THEME_LICENSES.md).
+Personal themes are loaded from the user's machine, are not distributed with
+Peak File Manager, and remain subject to their own terms.

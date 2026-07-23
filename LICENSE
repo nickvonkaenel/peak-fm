@@ -1,3 +1,13 @@
+Peak File Manager License Notice
+
+Except for third-party software and assets identified in
+SYNTAX_THEME_LICENSES.md, Peak File Manager's original software is licensed
+under the MIT License below.
+
+The MIT License below does not apply to src/core/noclownfiesta.tmTheme. Its
+provenance and upstream license status are documented in
+SYNTAX_THEME_LICENSES.md.
+
 MIT License
 
 Copyright (c) 2026 Nick von Kaenel

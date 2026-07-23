@@ -58,6 +58,7 @@ jobs:
       - name: Verify syntax and theme notices
         if: runner.os == 'Linux'
         run: |
+          echo "497436e882381943c576a003ffd62cf0221fc9d1f52cd7372be1ffd47a047f7c  src/core/noclownfiesta.tmTheme" | sha256sum --check
           cargo run --locked --example generate_third_party_licenses
           git diff --exit-code -- SYNTAX_THEME_LICENSES.md
 

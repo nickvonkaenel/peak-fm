@@ -1,8 +1,29 @@
-# Syntax and Theme Licenses
+# Syntax and Theme Licenses and Provenance Notices
 
 This file covers the software and embedded assets used by Peak File Manager's syntax-highlighting and theme features. It is not a complete inventory of every Rust dependency.
 
-The notices below were generated for the exact dependency versions locked by this release.
+The dependency-derived notices below were generated for the exact versions locked by this release. A provenance notice documents the separately bundled No Clown Fiesta adaptation, for which no upstream license was found.
+
+## No Clown Fiesta TextMate adaptation
+
+Bundled asset: `src/core/noclownfiesta.tmTheme`
+
+SHA-256: `497436e882381943c576a003ffd62cf0221fc9d1f52cd7372be1ffd47a047f7c`
+
+This is the legacy TextMate adaptation previously shipped by `fm`, based on No
+Clown Fiesta by Gustaf Rydholm (aktersnurra).
+
+Upstream source: <https://github.com/aktersnurra/no-clown-fiesta.nvim>
+
+License status was checked at upstream revision
+[`04b808e9769ded988089772ffcaf08d92d75d927`](https://github.com/aktersnurra/no-clown-fiesta.nvim/commit/04b808e9769ded988089772ffcaf08d92d75d927):
+no license file or permission grant was found. The upstream revision used to
+create this adaptation and the adaptation's author were not recorded.
+
+This is a provenance notice, not a license grant. Peak File Manager's MIT
+license does not apply to this asset, and Peak File Manager grants no
+redistribution rights to the upstream material. The theme is bundled with
+attribution at the Peak File Manager maintainer's direction.
 
 ## Syntect 5.3.0
 
