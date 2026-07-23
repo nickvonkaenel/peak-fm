@@ -44,14 +44,7 @@ pub(super) fn handle_theme_select(app: &mut App, key: KeyEvent, selected: usize)
         }
         KeyCode::Char('j') | KeyCode::Down => {
             let new_selected = if selected + 1 >= len { 0 } else { selected + 1 };
-            // Apply theme immediately for preview
-            if let Some(name) = themes.get(new_selected) {
-                set_theme(name);
-                app.refresh_preview();
-            }
-            app.mode = Mode::ThemeSelect {
-                selected: new_selected,
-            };
+            preview_theme_selection(app, &themes, new_selected);
         }
         KeyCode::Char('k') | KeyCode::Up => {
             let new_selected = if selected == 0 {
@@ -59,19 +52,36 @@ pub(super) fn handle_theme_select(app: &mut App, key: KeyEvent, selected: usize)
             } else {
                 selected - 1
             };
-            // Apply theme immediately for preview
-            if let Some(name) = themes.get(new_selected) {
-                set_theme(name);
-                app.refresh_preview();
-            }
-            app.mode = Mode::ThemeSelect {
-                selected: new_selected,
-            };
+            preview_theme_selection(app, &themes, new_selected);
+        }
+        KeyCode::Home => {
+            preview_theme_selection(app, &themes, 0);
+        }
+        KeyCode::End => {
+            preview_theme_selection(app, &themes, len.saturating_sub(1));
+        }
+        KeyCode::PageDown => {
+            preview_theme_selection(
+                app,
+                &themes,
+                selected.saturating_add(8).min(len.saturating_sub(1)),
+            );
+        }
+        KeyCode::PageUp => {
+            preview_theme_selection(app, &themes, selected.saturating_sub(8));
         }
         _ => {}
     }
 
     Ok(())
+}
+
+fn preview_theme_selection(app: &mut App, themes: &[String], selected: usize) {
+    if let Some(name) = themes.get(selected) {
+        let _ = set_theme(name);
+        app.refresh_preview();
+    }
+    app.mode = Mode::ThemeSelect { selected };
 }
 
 pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> io::Result<()> {

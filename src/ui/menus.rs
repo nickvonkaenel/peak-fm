@@ -234,7 +234,7 @@ pub(super) fn render_leader_menu(frame: &mut Frame, area: Rect) {
         ]),
         Line::from(vec![
             Span::styled("  c  ", Style::default().fg(Color::Yellow)),
-            Span::raw("Colors"),
+            Span::raw("Themes"),
         ]),
         Line::from(vec![
             Span::styled("  f  ", Style::default().fg(Color::Yellow)),

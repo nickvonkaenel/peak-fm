@@ -1303,7 +1303,12 @@ fn render_theme_select(frame: &mut Frame, area: Rect, selected: usize) {
     let current = current_theme();
 
     // Center the popup
-    let popup_width = 40.min(area.width.saturating_sub(4));
+    let longest_name = themes
+        .iter()
+        .map(|name| name.chars().count())
+        .max()
+        .unwrap_or(0);
+    let popup_width = ((longest_name + 8).max(48) as u16).min(area.width.saturating_sub(4));
     let popup_height = (themes.len() + 4).min(area.height.saturating_sub(4) as usize) as u16;
     let popup_x = (area.width.saturating_sub(popup_width)) / 2;
     let popup_y = (area.height.saturating_sub(popup_height)) / 2;
@@ -1314,12 +1319,14 @@ fn render_theme_select(frame: &mut Frame, area: Rect, selected: usize) {
 
     let mut lines: Vec<Line> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "Use j/k to navigate, Enter to select",
+        "j/k · PgUp/PgDn · Enter select · Esc cancel",
         Style::default().fg(Color::DarkGray),
     )));
     lines.push(Line::from(""));
 
-    for (i, name) in themes.iter().enumerate() {
+    let visible_count = popup_height.saturating_sub(4) as usize;
+    let start = theme_window_start(selected, themes.len(), visible_count);
+    for (i, name) in themes.iter().enumerate().skip(start).take(visible_count) {
         let is_current = name == &current;
         let is_selected = i == selected;
 
@@ -1341,12 +1348,26 @@ fn render_theme_select(frame: &mut Frame, area: Rect, selected: usize) {
     }
 
     let block = Block::default()
-        .title(" Colors ")
+        .title(format!(
+            " Themes {}/{} ",
+            selected.saturating_add(1).min(themes.len()),
+            themes.len()
+        ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Magenta));
 
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup_area);
+}
+
+fn theme_window_start(selected: usize, total: usize, visible: usize) -> usize {
+    if visible == 0 || total <= visible {
+        return 0;
+    }
+
+    selected
+        .saturating_sub(visible / 2)
+        .min(total.saturating_sub(visible))
 }
 
 pub(super) fn render_status(frame: &mut Frame, area: Rect, app: &App) {
@@ -1479,5 +1500,23 @@ pub(super) fn render_status(frame: &mut Frame, area: Rect, app: &App) {
             Style::default().fg(Color::DarkGray),
         ));
         frame.render_widget(hint, hint_area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::theme_window_start;
+
+    #[test]
+    fn theme_window_keeps_selection_visible() {
+        assert_eq!(theme_window_start(0, 30, 8), 0);
+        assert_eq!(theme_window_start(15, 30, 8), 11);
+        assert_eq!(theme_window_start(29, 30, 8), 22);
+    }
+
+    #[test]
+    fn theme_window_stays_at_start_when_everything_fits() {
+        assert_eq!(theme_window_start(5, 6, 8), 0);
+        assert_eq!(theme_window_start(0, 0, 0), 0);
     }
 }

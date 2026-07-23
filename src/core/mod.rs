@@ -16,7 +16,10 @@ pub use buffer::BufferLine;
 pub use diff::{compute_diff, topological_sort, FsOperation};
 pub use entry::{Entry, EntryId, EntryKind};
 pub use grep::{GrepMatch, GrepModeState};
-pub use highlight::{available_themes, current_theme, map_to_theme_color, set_theme, Highlighter};
+pub use highlight::{
+    available_themes, current_theme, map_to_theme_color, set_theme, theme_load_warnings,
+    Highlighter, DEFAULT_THEME,
+};
 pub use image::ImagePreview;
 pub use operations::GlobalOperationStore;
 pub use pane::Pane;

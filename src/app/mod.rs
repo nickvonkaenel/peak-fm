@@ -25,9 +25,9 @@ use crate::config::Config;
 use crate::core::image::{load_image_async, ImageLoadResult};
 use crate::core::player::AudioPlayer;
 use crate::core::{
-    available_themes, compute_diff, current_theme, load_preview, set_theme, BufferLine,
-    DisplayInfo, FsOperation, GlobalOperationStore, GrepMatch, GrepModeState, Pane, Preview,
-    SearchEntry, SearchModeState, SortOption,
+    available_themes, compute_diff, current_theme, load_preview, set_theme, theme_load_warnings,
+    BufferLine, DisplayInfo, FsOperation, GlobalOperationStore, GrepMatch, GrepModeState, Pane,
+    Preview, SearchEntry, SearchModeState, SortOption, DEFAULT_THEME,
 };
 use crate::fs;
 use crate::input::{Mode, SearchDirection};
@@ -212,7 +212,7 @@ impl App {
         select: Option<String>,
         search_lock_dir: Option<PathBuf>,
     ) -> io::Result<Self> {
-        let (config, config_warnings) = Config::load_with_warnings();
+        let (config, mut startup_warnings) = Config::load_with_warnings();
         let show_hidden = config.show_hidden;
         let wrap_preview = config.wrap_preview;
         let line_numbers = config.line_numbers;
@@ -228,8 +228,16 @@ impl App {
         let audio_volume = config.audio_volume;
         let audio_analyzer_gradient = config.audio_analyzer_gradient;
 
-        // Set the theme from config
-        set_theme(&config.theme);
+        // Set the theme from config. An unavailable personal theme falls back
+        // safely while still surfacing a useful startup warning.
+        if !set_theme(&config.theme) {
+            let _ = set_theme(DEFAULT_THEME);
+            startup_warnings.push(format!(
+                "configured theme '{}' is unavailable",
+                config.theme
+            ));
+        }
+        startup_warnings.extend(theme_load_warnings());
 
         let cwd = start_path.canonicalize()?;
         let mut entries = fs::read_dir_filtered(&cwd, show_hidden)?;
@@ -315,12 +323,13 @@ impl App {
             app.select_by_name(&filename);
         }
 
-        // Surface any config parse problems so settings don't silently vanish.
-        if !config_warnings.is_empty() {
+        // Surface config and personal-theme problems instead of silently
+        // falling back.
+        if !startup_warnings.is_empty() {
             app.set_status(format!(
-                "Config: {} issue(s) — e.g. {}",
-                config_warnings.len(),
-                config_warnings[0]
+                "Startup: {} issue(s) — e.g. {}",
+                startup_warnings.len(),
+                startup_warnings[0]
             ));
         }
 
@@ -2020,12 +2029,24 @@ impl App {
     }
 
     pub fn select_theme(&mut self, name: &str) {
-        set_theme(name);
+        if !set_theme(name) {
+            self.set_status(format!("Theme unavailable: {}", name));
+            self.mode = Mode::Normal;
+            return;
+        }
 
         // Save to config
         let mut config = Config::load();
         config.theme = name.to_string();
-        config.save();
+        if let Err(error) = config.save_checked() {
+            self.refresh_preview();
+            self.set_status(format!(
+                "Theme active, but settings were not saved: {}",
+                error
+            ));
+            self.mode = Mode::Normal;
+            return;
+        }
 
         // Refresh preview to show new theme
         self.refresh_preview();

@@ -61,6 +61,65 @@ command enables a specific integration:
 Audio browsing and playback are built in. They do not require FastSoundFinder
 or FFmpeg.
 
+## Themes
+
+Press `Space`, then `c` to open the syntax-theme picker. Use `j`/`k` or the
+arrow keys for live preview, `Page Up`/`Page Down` for larger jumps, `Enter` to
+save the selection, or `Esc` to cancel.
+
+Peak File Manager includes Syntect's Base16, InspiredGitHub, and Solarized
+themes, plus a curated set from `two-face`: Dracula, GitHub, Gruvbox dark and
+light, Monokai Extended, Nord, and One Half dark and light. Licenses and
+notices supplied through `two-face` are reproduced in
+[Syntax and Theme Licenses](SYNTAX_THEME_LICENSES.md), with
+[upstream provenance maintained by `two-face`](https://github.com/CosmicHorrorDev/two-face/blob/v0.4.5/generated/acknowledgements_full.md).
+
+To add a personal TextMate theme:
+
+1. Create the theme directory if it does not exist:
+   - Unix and macOS: `~/.config/peak-fm/themes`
+   - Windows: `%LOCALAPPDATA%\peak-fm\themes`
+2. Copy one or more `.tmTheme` files into it. Subdirectories are also scanned.
+3. Restart `pk`, then open `Space`, `c` and select the theme.
+
+To author a theme, create a standard TextMate property-list file. This is a
+minimal starting point:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>name</key>
+  <string>My Theme</string>
+  <key>settings</key>
+  <array>
+    <dict>
+      <key>settings</key>
+      <dict>
+        <key>background</key><string>#101216</string>
+        <key>foreground</key><string>#d8dee9</string>
+      </dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>comment</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#6b7280</string></dict>
+    </dict>
+  </array>
+</dict>
+</plist>
+```
+
+The filename without `.tmTheme` is the name stored in settings and shown in
+the picker. A personal theme with the same filename as a bundled theme
+overrides the bundled copy. Malformed files are skipped and reported in the
+startup status.
+
+Themes currently control syntax-preview colors and, when `theme_icons=true`,
+the palette used to remap icon colors. They do not recolor the entire TUI or
+terminal background, so dark variants are intended for dark terminals and
+light variants for light terminals.
+
 ## Installation
 
 Peak File Manager is currently installed from source:
@@ -315,6 +374,8 @@ Other state locations:
 
 - Trash: `~/.local/share/peak-fm/trash` on Unix/macOS,
   `%LOCALAPPDATA%\peak-fm\trash` on Windows
+- Personal themes: `~/.config/peak-fm/themes` on Unix/macOS,
+  `%LOCALAPPDATA%\peak-fm\themes` on Windows
 - Waveforms: `~/.cache/peak-fm/waveforms`
 - Audio indexes: the platform config directory under `peak-fm/audio`
 - Last directory: the system temp directory's `peak-fm-lastdir`
@@ -342,4 +403,8 @@ Linux, macOS, and Windows. Linux also verifies the Cargo release package.
 
 ## License
 
-Peak File Manager is available under the [MIT License](LICENSE).
+Peak File Manager's original code is available under the [MIT License](LICENSE).
+Bundled third-party syntax and theme assets retain the terms reproduced in
+[Syntax and Theme Licenses](SYNTAX_THEME_LICENSES.md). Personal themes are
+loaded from the user's machine, are not distributed with Peak File Manager,
+and remain subject to their own terms.

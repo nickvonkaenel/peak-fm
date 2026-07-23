@@ -57,6 +57,12 @@ jobs:
           cargo run --locked --bin pk -- --version
           cargo run --locked --bin peak-fm -- --version
 
+      - name: Verify syntax and theme notices
+        if: runner.os == 'Linux'
+        run: |
+          cargo run --locked --example generate_third_party_licenses
+          git diff --exit-code -- SYNTAX_THEME_LICENSES.md
+
       - name: Verify release package
         if: runner.os == 'Linux'
         run: cargo package --locked

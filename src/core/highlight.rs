@@ -1,36 +1,164 @@
+use ignore::WalkBuilder;
 use once_cell::sync::Lazy;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::Path;
 use std::sync::RwLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{FontStyle, Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
+use two_face::theme::EmbeddedThemeName;
+
+use crate::paths::themes_dir;
 
 /// Global syntax set - uses two-face for extensive language support (same as bat)
 static SYNTAX_SET: Lazy<SyntaxSet> = Lazy::new(two_face::syntax::extra_newlines);
 
-/// All available themes
-static THEMES: Lazy<BTreeMap<String, Theme>> = Lazy::new(|| {
-    let mut themes = BTreeMap::new();
+pub const DEFAULT_THEME: &str = "base16-ocean.dark";
 
-    // Load built-in themes
+/// Popular themes already shipped by two-face. Keeping this list curated avoids
+/// filling the picker with terminal-specific and deprecated variants.
+const POPULAR_THEMES: &[EmbeddedThemeName] = &[
+    EmbeddedThemeName::Dracula,
+    EmbeddedThemeName::Github,
+    EmbeddedThemeName::GruvboxDark,
+    EmbeddedThemeName::GruvboxLight,
+    EmbeddedThemeName::MonokaiExtended,
+    EmbeddedThemeName::Nord,
+    EmbeddedThemeName::OneHalfDark,
+    EmbeddedThemeName::OneHalfLight,
+];
+
+struct ThemeCatalog {
+    themes: BTreeMap<String, Theme>,
+    warnings: Vec<String>,
+}
+
+/// Build the catalog once per process. Personal themes are loaded at startup,
+/// after bundled themes, so a same-named personal file intentionally wins.
+static THEME_CATALOG: Lazy<ThemeCatalog> =
+    Lazy::new(|| build_theme_catalog(themes_dir().as_deref()));
+
+fn build_theme_catalog(personal_theme_dir: Option<&Path>) -> ThemeCatalog {
+    let mut themes = BTreeMap::new();
+    let mut warnings = Vec::new();
+
+    // Syntect's defaults include Solarized, InspiredGitHub and Base16 themes.
     let defaults = ThemeSet::load_defaults();
     for (name, theme) in defaults.themes {
         themes.insert(name, theme);
     }
 
-    themes
-});
+    // Add a conservative selection from two-face's curated theme collection.
+    let popular = two_face::theme::extra();
+    for name in POPULAR_THEMES {
+        themes.insert(name.as_name().to_string(), popular.get(*name).clone());
+    }
+
+    if let Some(directory) = personal_theme_dir {
+        load_personal_themes(directory, &mut themes, &mut warnings);
+    }
+
+    ThemeCatalog { themes, warnings }
+}
+
+fn load_personal_themes(
+    directory: &Path,
+    themes: &mut BTreeMap<String, Theme>,
+    warnings: &mut Vec<String>,
+) {
+    match fs::metadata(directory) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            warnings.push(format!(
+                "theme path is not a directory: {}",
+                directory.display()
+            ));
+            return;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            warnings.push(format!(
+                "could not inspect theme directory {}: {}",
+                directory.display(),
+                error
+            ));
+            return;
+        }
+    }
+
+    let mut builder = WalkBuilder::new(directory);
+    builder
+        .follow_links(false)
+        .hidden(false)
+        .parents(false)
+        .ignore(false)
+        .git_global(false)
+        .git_ignore(false)
+        .git_exclude(false);
+
+    let mut paths = Vec::new();
+    for result in builder.build() {
+        match result {
+            Ok(entry)
+                if entry
+                    .file_type()
+                    .is_some_and(|file_type| file_type.is_file())
+                    && entry
+                        .path()
+                        .extension()
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("tmTheme")) =>
+            {
+                paths.push(entry.into_path());
+            }
+            Ok(_) => {}
+            Err(error) => warnings.push(format!(
+                "could not inspect a theme path in {}: {}",
+                directory.display(),
+                error
+            )),
+        }
+    }
+    paths.sort();
+
+    for path in paths {
+        let Some(name) = theme_name_from_path(&path) else {
+            warnings.push(format!("theme has an invalid filename: {}", path.display()));
+            continue;
+        };
+        match ThemeSet::get_theme(&path) {
+            Ok(theme) => {
+                themes.insert(name, theme);
+            }
+            Err(error) => warnings.push(format!(
+                "could not load theme {}: {}",
+                path.display(),
+                error
+            )),
+        }
+    }
+}
+
+fn theme_name_from_path(path: &Path) -> Option<String> {
+    path.file_stem()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty() && !name.chars().any(char::is_control))
+        .map(str::to_string)
+}
 
 /// Currently selected theme name
-static CURRENT_THEME: Lazy<RwLock<String>> =
-    Lazy::new(|| RwLock::new("base16-ocean.dark".to_string()));
+static CURRENT_THEME: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(DEFAULT_THEME.to_string()));
 
 /// Get list of available theme names
 pub fn available_themes() -> Vec<String> {
-    THEMES.keys().cloned().collect()
+    THEME_CATALOG.themes.keys().cloned().collect()
+}
+
+/// Non-fatal failures encountered while loading personal theme files.
+pub fn theme_load_warnings() -> Vec<String> {
+    THEME_CATALOG.warnings.clone()
 }
 
 /// Get current theme name
@@ -38,19 +166,25 @@ pub fn current_theme() -> String {
     CURRENT_THEME.read().unwrap().clone()
 }
 
-/// Set current theme by name
-pub fn set_theme(name: &str) {
-    if THEMES.contains_key(name) {
+/// Set current theme by name. Returns false when the name is not available.
+pub fn set_theme(name: &str) -> bool {
+    if THEME_CATALOG.themes.contains_key(name) {
         *CURRENT_THEME.write().unwrap() = name.to_string();
+        true
+    } else {
+        false
     }
 }
 
 /// Get the current theme
 fn get_theme() -> &'static Theme {
     let name = CURRENT_THEME.read().unwrap();
-    THEMES
+    THEME_CATALOG
+        .themes
         .get(name.as_str())
-        .unwrap_or_else(|| THEMES.get("base16-ocean.dark").unwrap())
+        .or_else(|| THEME_CATALOG.themes.get(DEFAULT_THEME))
+        .or_else(|| THEME_CATALOG.themes.values().next())
+        .expect("Peak File Manager must have at least one syntax theme")
 }
 
 /// A highlighted line containing styled spans
@@ -321,4 +455,95 @@ pub fn map_to_theme_color(r: u8, g: u8, b: u8) -> Color {
     }
 
     Color::Rgb(best_match.0, best_match.1, best_match.2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    const TEST_THEME: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>name</key>
+  <string>Peak Test</string>
+  <key>settings</key>
+  <array>
+    <dict>
+      <key>settings</key>
+      <dict>
+        <key>background</key>
+        <string>#000000</string>
+        <key>foreground</key>
+        <string>#010203</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
+"##;
+
+    #[test]
+    fn catalog_includes_curated_popular_themes() {
+        let catalog = build_theme_catalog(None);
+        for name in [
+            "Dracula",
+            "GitHub",
+            "gruvbox-dark",
+            "gruvbox-light",
+            "Monokai Extended",
+            "Nord",
+            "OneHalfDark",
+            "OneHalfLight",
+        ] {
+            assert!(catalog.themes.contains_key(name), "missing {name}");
+        }
+    }
+
+    #[test]
+    fn personal_themes_load_independently_and_override_bundled_names() {
+        let dir = TempDir::new().unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(dir.path().join("Dracula.tmTheme"), TEST_THEME).unwrap();
+        fs::write(nested.join("personal.tmTheme"), TEST_THEME).unwrap();
+        fs::write(dir.path().join("broken.tmTheme"), "not a plist").unwrap();
+        fs::write(dir.path().join("ignored.txt"), TEST_THEME).unwrap();
+
+        let catalog = build_theme_catalog(Some(dir.path()));
+
+        let dracula = catalog.themes.get("Dracula").unwrap();
+        let foreground = dracula.settings.foreground.unwrap();
+        assert_eq!((foreground.r, foreground.g, foreground.b), (1, 2, 3));
+        assert!(catalog.themes.contains_key("personal"));
+        assert!(!catalog.themes.contains_key("ignored"));
+        assert_eq!(catalog.warnings.len(), 1);
+        assert!(catalog.warnings[0].contains("broken.tmTheme"));
+    }
+
+    #[test]
+    fn theme_names_reject_settings_control_characters() {
+        assert_eq!(
+            theme_name_from_path(Path::new("my-theme.tmTheme")).as_deref(),
+            Some("my-theme")
+        );
+        assert!(theme_name_from_path(Path::new("bad\nshow_hidden=false.tmTheme")).is_none());
+        assert!(theme_name_from_path(Path::new("bad\rtheme=Dracula.tmTheme")).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn personal_theme_walk_does_not_follow_nested_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let theme_dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        fs::write(outside.path().join("outside.tmTheme"), TEST_THEME).unwrap();
+        symlink(outside.path(), theme_dir.path().join("linked")).unwrap();
+
+        let catalog = build_theme_catalog(Some(theme_dir.path()));
+
+        assert!(!catalog.themes.contains_key("outside"));
+        assert!(catalog.warnings.is_empty());
+    }
 }

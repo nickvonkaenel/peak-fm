@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 
-use crate::core::SortOption;
-use crate::paths::{APP_DIR_NAME, LEGACY_APP_DIR_NAME, PRODUCT_NAME};
+use crate::core::{SortOption, DEFAULT_THEME};
+use crate::paths::{config_dir, LEGACY_APP_DIR_NAME, PRODUCT_NAME, SETTINGS_FILE_NAME};
 
 /// Bumped when the on-disk settings format changes in a way that needs
 /// migration. Files without a `version=` line are treated as legacy (v0) and
@@ -42,7 +43,7 @@ impl Default for Config {
             show_icons: true,
             colored_icons: true,
             theme_icons: true,
-            theme: "base16-ocean.dark".to_string(),
+            theme: DEFAULT_THEME.to_string(),
             search_navigate_on_open: true,
             sort_option: SortOption::Name,
             dir_sort_cache: HashMap::new(),
@@ -87,14 +88,7 @@ fn sort_to_str(sort: SortOption) -> &'static str {
 
 impl Config {
     fn config_path() -> Option<PathBuf> {
-        #[cfg(windows)]
-        {
-            dirs::data_local_dir().map(|p| p.join(APP_DIR_NAME).join("settings"))
-        }
-        #[cfg(not(windows))]
-        {
-            dirs::home_dir().map(|p| p.join(".config").join(APP_DIR_NAME).join("settings"))
-        }
+        config_dir().map(|path| path.join(SETTINGS_FILE_NAME))
     }
 
     fn legacy_config_path() -> Option<PathBuf> {
@@ -292,13 +286,23 @@ impl Config {
     }
 
     pub fn save(&self) {
-        let Some(path) = Self::config_path() else {
-            return;
-        };
+        let _ = self.save_checked();
+    }
 
+    pub fn save_checked(&self) -> io::Result<()> {
+        let Some(path) = Self::config_path() else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "could not determine the config directory",
+            ));
+        };
+        self.save_to_path(&path)
+    }
+
+    fn save_to_path(&self, path: &Path) -> io::Result<()> {
         // Create config directory if needed.
         if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
+            fs::create_dir_all(parent)?;
         }
 
         let contents = self.serialize();
@@ -307,12 +311,15 @@ impl Config {
         // so a crash mid-write can't truncate or corrupt the existing config
         // (which would silently reset every setting on the next load).
         let tmp = path.with_extension("tmp");
-        if fs::write(&tmp, contents.as_bytes()).is_ok() && fs::rename(&tmp, &path).is_err() {
-            // Rename failed (e.g. cross-volume); fall back to a direct write
-            // and clean up the temp file.
-            let _ = fs::write(&path, contents.as_bytes());
+        fs::write(&tmp, contents.as_bytes())?;
+        if fs::rename(&tmp, path).is_err() {
+            // Replacing an existing file via rename is unsupported on some
+            // platforms. Fall back to a direct write and clean up the temp.
+            let result = fs::write(path, contents.as_bytes());
             let _ = fs::remove_file(&tmp);
+            result?;
         }
+        Ok(())
     }
 }
 
@@ -346,6 +353,19 @@ mod tests {
             parsed.dir_sort_cache.get(&PathBuf::from("/tmp/x")),
             Some(&SortOption::DateModified)
         );
+    }
+
+    #[test]
+    fn checked_save_reports_directory_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocker = dir.path().join("not-a-directory");
+        fs::write(&blocker, "file").unwrap();
+
+        let error = Config::default()
+            .save_to_path(&blocker.join("settings"))
+            .unwrap_err();
+
+        assert_ne!(error.kind(), io::ErrorKind::NotFound);
     }
 
     #[test]
