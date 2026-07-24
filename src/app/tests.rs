@@ -42,6 +42,15 @@ fn cwd_path(app: &App, name: &str) -> PathBuf {
 }
 
 #[test]
+fn app_defers_audio_device_initialization() {
+    let (_tmp, app) = app_with(&[]);
+    assert!(
+        app.audio_player.is_none(),
+        "opening a file manager should not open the system audio device"
+    );
+}
+
+#[test]
 fn delete_stages_a_delete_op() {
     let (_tmp, mut app) = app_with(&[("a.txt", false), ("b.txt", false)]);
     app.select_by_name("a.txt");
@@ -214,7 +223,7 @@ fn shell_quote_wraps_and_escapes() {
         assert_eq!(shell_quote("plain"), "'plain'");
         assert_eq!(shell_quote("with space"), "'with space'");
         // Embedded single quote -> '\'' .
-        assert_eq!(shell_quote("a'b"), "'a'\''b'");
+        assert_eq!(shell_quote("a'b"), r#"'a'\''b'"#);
     }
     #[cfg(windows)]
     {

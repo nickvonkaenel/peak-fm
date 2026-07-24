@@ -512,7 +512,15 @@ output: "{}"
 
     // Audio playback methods
 
+    fn ensure_audio_player(&mut self) -> bool {
+        if self.audio_player.is_none() {
+            self.audio_player = crate::core::player::AudioPlayer::new();
+        }
+        self.audio_player.is_some()
+    }
+
     pub fn toggle_audio(&mut self) {
+        self.ensure_audio_player();
         let Some(player) = self.audio_player.as_mut() else {
             self.set_status("Audio not available");
             return;
@@ -564,6 +572,7 @@ output: "{}"
             return;
         }
 
+        self.ensure_audio_player();
         let Some(player) = self.audio_player.as_mut() else {
             self.set_status("Audio not available");
             return;
@@ -585,6 +594,7 @@ output: "{}"
 
     /// Play a specific audio file (used for auto-play)
     pub(super) fn play_audio_file(&mut self, path: &std::path::Path) {
+        self.ensure_audio_player();
         let Some(player) = self.audio_player.as_mut() else {
             return;
         };
@@ -635,6 +645,7 @@ output: "{}"
 
     /// Toggle audio playback from Find mode (uses find_state's selected path)
     pub fn toggle_audio_from_find(&mut self) {
+        self.ensure_audio_player();
         let Some(player) = self.audio_player.as_mut() else {
             self.set_status("Audio not available");
             return;
@@ -686,6 +697,7 @@ output: "{}"
             return;
         }
 
+        self.ensure_audio_player();
         let Some(player) = self.audio_player.as_mut() else {
             self.set_status("Audio not available");
             return;

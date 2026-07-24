@@ -295,7 +295,9 @@ impl App {
             nvim_mode,
             nvim_result: None,
             search_lock_dir,
-            audio_player: AudioPlayer::new(),
+            // Open the platform audio device only when playback is requested.
+            // This keeps startup and state-only tests out of native backends.
+            audio_player: None,
             audio_auto_play,
             audio_normalize,
             audio_skip_silence,

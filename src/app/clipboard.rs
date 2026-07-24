@@ -2,7 +2,7 @@
 
 #![allow(unexpected_cfgs)]
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::process::Command;
 
 use super::App;
@@ -181,7 +181,7 @@ fn copy_to_clipboard_macos(path: &str) -> Result<(), String> {
 #[allow(deprecated)]
 fn copy_paths_to_clipboard_macos(paths: &[String]) -> Result<(), String> {
     use cocoa::base::{id, nil};
-    use cocoa::foundation::{NSArray, NSString};
+    use cocoa::foundation::NSString;
     use objc::{class, msg_send, sel, sel_impl};
 
     if paths.is_empty() {
@@ -358,7 +358,6 @@ fn copy_to_clipboard_linux(path: &str) -> Result<(), String> {
 #[cfg(target_os = "linux")]
 fn copy_paths_to_clipboard_linux(paths: &[String]) -> Result<(), String> {
     use std::io::Write;
-    use std::process::Command;
 
     if paths.is_empty() {
         return Err("No files to copy".to_string());
