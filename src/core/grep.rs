@@ -360,29 +360,20 @@ fn parse_rg_line(line: &str, root: &PathBuf) -> Option<GrepMatch> {
                 .unwrap_or(false)
         {
             // Find the next colon after the drive letter
-            if let Some(pos) = line[2..].find(':') {
-                let path_end = pos + 2;
-                (&line[..path_end], &line[path_end + 1..])
-            } else {
-                return None;
-            }
+            let pos = line[2..].find(':')?;
+            let path_end = pos + 2;
+            (&line[..path_end], &line[path_end + 1..])
         } else {
             // No drive letter, split normally
-            if let Some(pos) = line.find(':') {
-                (&line[..pos], &line[pos + 1..])
-            } else {
-                return None;
-            }
+            let pos = line.find(':')?;
+            (&line[..pos], &line[pos + 1..])
         }
     };
 
     #[cfg(not(target_os = "windows"))]
     let (path_str, rest) = {
-        if let Some(pos) = line.find(':') {
-            (&line[..pos], &line[pos + 1..])
-        } else {
-            return None;
-        }
+        let pos = line.find(':')?;
+        (&line[..pos], &line[pos + 1..])
     };
 
     // Now parse rest as line_num:col_num:content

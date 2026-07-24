@@ -726,8 +726,8 @@ fn highlight_pattern_in_line(line: Line<'static>, pattern: &str) -> Line<'static
                     result.push(Span::styled(text[last_end..start].to_string(), base_style));
                 }
                 // Apply highlight style but keep background if set
-                let match_style = if base_style.bg.is_some() {
-                    highlight_style.bg(base_style.bg.unwrap())
+                let match_style = if let Some(background) = base_style.bg {
+                    highlight_style.bg(background)
                 } else {
                     highlight_style
                 };

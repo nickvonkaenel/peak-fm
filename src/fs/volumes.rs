@@ -49,7 +49,7 @@ fn enumerate_volumes() -> Vec<Entry> {
 
             // Skip symlinks that point to root (e.g., "Macintosh HD" -> "/")
             if let Ok(target) = std::fs::read_link(&path) {
-                if target == PathBuf::from("/") {
+                if target == Path::new("/") {
                     continue;
                 }
             }

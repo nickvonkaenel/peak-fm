@@ -20,10 +20,7 @@ where
     unsafe {
         let stderr_fd = std::io::stderr().as_raw_fd();
         let saved_fd = libc::dup(stderr_fd);
-        let dev_null = libc::open(
-            "/dev/null\0".as_ptr() as *const libc::c_char,
-            libc::O_WRONLY,
-        );
+        let dev_null = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
         libc::dup2(dev_null, stderr_fd);
         libc::close(dev_null);
 

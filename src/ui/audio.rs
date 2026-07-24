@@ -565,7 +565,7 @@ fn render_controls_section(frame: &mut Frame, _app: &App, state: &AudioModeState
             ]),
             Line::from(vec![
                 Span::styled("N        ", Style::default().fg(Color::Blue)),
-                Span::raw(format!("Normalize ({})", &normalize_status)),
+                Span::raw(format!("Normalize ({})", normalize_status)),
             ]),
             Line::from(vec![
                 Span::styled("S        ", Style::default().fg(Color::Blue)),
@@ -595,7 +595,7 @@ fn render_controls_section(frame: &mut Frame, _app: &App, state: &AudioModeState
             ]),
             Line::from(vec![
                 Span::styled("N        ", Style::default().fg(Color::Blue)),
-                Span::raw(format!("Normalize ({})", &normalize_status)),
+                Span::raw(format!("Normalize ({})", normalize_status)),
             ]),
             Line::from(vec![
                 Span::styled("S        ", Style::default().fg(Color::Blue)),
@@ -865,11 +865,9 @@ fn render_waveform_fsf(frame: &mut Frame, area: Rect, app: &App, show_analyzer: 
                     }
 
                     // Map display position to peak index
-                    let peak_idx = if filled_width > 0 {
-                        (i * total_peaks) / filled_width
-                    } else {
-                        0
-                    };
+                    let peak_idx = (i * total_peaks)
+                        .checked_div(filled_width)
+                        .unwrap_or_default();
 
                     if peak_idx >= total_peaks {
                         chars.push(Span::styled(" ".to_string(), Style::default()));

@@ -381,26 +381,24 @@ pub(super) fn handle_audio(app: &mut App, key: KeyEvent) -> io::Result<()> {
         (KeyCode::Char(c), mods)
             if !browse_mode
                 && !mods.contains(KeyModifiers::CONTROL)
-                && !mods.contains(KeyModifiers::ALT) =>
+                && !mods.contains(KeyModifiers::ALT)
+                && !matches!(
+                    c,
+                    'A' | 'N' | 'R' | 'P' | 'V' | 'T' | 'B' | 'K' | 'J' | '[' | ']' | '{' | '}'
+                ) =>
         {
-            // Skip keys that have special functions (shift keys, symbols)
-            if !matches!(
-                c,
-                'A' | 'N' | 'R' | 'P' | 'V' | 'T' | 'B' | 'K' | 'J' | '[' | ']' | '{' | '}'
-            ) {
-                if let Some(state) = &mut app.audio_state {
-                    // Space has special handling
-                    if c == ' ' {
-                        // If search is empty or ends with space, toggle play/pause
-                        if state.search_query.is_empty() || state.search_query.ends_with(' ') {
-                            state.toggle_play_pause();
-                        } else {
-                            // Add space but don't re-filter (just append without update_filter)
-                            state.search_query.push(' ');
-                        }
+            if let Some(state) = &mut app.audio_state {
+                // Space has special handling
+                if c == ' ' {
+                    // If search is empty or ends with space, toggle play/pause
+                    if state.search_query.is_empty() || state.search_query.ends_with(' ') {
+                        state.toggle_play_pause();
                     } else {
-                        state.search_push_char(c);
+                        // Add space but don't re-filter (just append without update_filter)
+                        state.search_query.push(' ');
                     }
+                } else {
+                    state.search_push_char(c);
                 }
             }
         }
