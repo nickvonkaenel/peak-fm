@@ -439,6 +439,11 @@ impl App {
                 if is_zoxide {
                     self.work_dir = path;
                     self.set_status(format!("work dir: {}", self.work_dir.display()));
+                    // In pick mode, the directory is the selection - quit so the
+                    // shell wrapper can cd to it
+                    if self.pick_mode {
+                        self.should_quit = true;
+                    }
                 }
             } else if self.nvim_mode {
                 // In nvim mode, output path and quit

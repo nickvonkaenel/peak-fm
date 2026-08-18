@@ -38,6 +38,17 @@ macro_rules! browse_cmd {
     };
 }
 
+/// Sync the current volume to app state and persist it to config
+fn save_volume(app: &mut App) {
+    if let Some(state) = &app.audio_state {
+        let linear_volume = 10.0_f32.powf(state.volume_db / 20.0);
+        app.audio_volume = linear_volume;
+        let mut config = crate::config::Config::load();
+        config.audio_volume = linear_volume;
+        config.save();
+    }
+}
+
 /// Copy audio file path to clipboard and show status
 fn audio_copy_to_clipboard(app: &mut App) {
     if let Some(state) = &mut app.audio_state {
@@ -153,12 +164,15 @@ pub(super) fn handle_audio(app: &mut App, key: KeyEvent) -> io::Result<()> {
         // Volume controls in browse mode (+/-)
         (KeyCode::Char('='), _) if browse_mode => {
             browse_cmd!(app, volume_up);
+            save_volume(app);
         }
         (KeyCode::Char('+'), _) if browse_mode => {
             browse_cmd!(app, volume_up);
+            save_volume(app);
         }
         (KeyCode::Char('-'), KeyModifiers::NONE) if browse_mode => {
             browse_cmd!(app, volume_down);
+            save_volume(app);
         }
 
         // Pitch controls in browse mode
@@ -235,36 +249,15 @@ pub(super) fn handle_audio(app: &mut App, key: KeyEvent) -> io::Result<()> {
         // Volume controls (Shift+K/J)
         (KeyCode::Char('K'), KeyModifiers::SHIFT) => {
             audio_cmd!(app, volume_up);
-            // Save volume to config
-            if let Some(state) = &app.audio_state {
-                let linear_volume = 10.0_f32.powf(state.volume_db / 20.0);
-                app.audio_volume = linear_volume;
-                let mut config = crate::config::Config::load();
-                config.audio_volume = linear_volume;
-                config.save();
-            }
+            save_volume(app);
         }
         (KeyCode::Char('J'), KeyModifiers::SHIFT) => {
             audio_cmd!(app, volume_down);
-            // Save volume to config
-            if let Some(state) = &app.audio_state {
-                let linear_volume = 10.0_f32.powf(state.volume_db / 20.0);
-                app.audio_volume = linear_volume;
-                let mut config = crate::config::Config::load();
-                config.audio_volume = linear_volume;
-                config.save();
-            }
+            save_volume(app);
         }
         (KeyCode::Char('V'), KeyModifiers::SHIFT) => {
             audio_cmd!(app, reset_volume);
-            // Save volume to config
-            if let Some(state) = &app.audio_state {
-                let linear_volume = 10.0_f32.powf(state.volume_db / 20.0);
-                app.audio_volume = linear_volume;
-                let mut config = crate::config::Config::load();
-                config.audio_volume = linear_volume;
-                config.save();
-            }
+            save_volume(app);
         }
 
         // Pitch controls ([ and ])

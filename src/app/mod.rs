@@ -108,7 +108,7 @@ pub struct App {
     pub audio_auto_play: bool, // Auto-play mode: continue playing when switching audio files (audio browser mode)
     pub audio_normalize: bool, // Normalize waveform amplitude
     pub audio_skip_silence: bool, // Auto-skip silence during playback
-    pub audio_volume: f32,     // Audio volume (0.0 to 2.0, default 1.0)
+    pub audio_volume: f32,     // Audio volume (0.0 to 4.0 linear, i.e. up to +12 dB, default 1.0)
     pub audio_analyzer_gradient: bool, // Analyzer gradient mode (colorful vs single color)
     pub audio_state: Option<audio::AudioModeState>, // Audio browser mode state
     pub normal_mode_autoplay: bool, // Auto-play audio in normal mode (not persistent, defaults to false)
@@ -2258,6 +2258,8 @@ impl App {
                 player.stop();
             }
             state.stop_analyzer();
+            // Sync volume back so re-entering audio mode keeps it
+            self.audio_volume = 10.0_f32.powf(state.volume_db / 20.0);
         }
         self.audio_state = None;
         self.mode = Mode::Normal;

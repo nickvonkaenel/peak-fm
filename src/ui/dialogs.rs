@@ -120,6 +120,7 @@ pub(super) fn render_help(frame: &mut Frame, area: Rect, app: &App) {
                 Line::from("  x/X      Restore from trash / restore marked"),
                 Line::from("  C        Copy file to system clipboard"),
                 Line::from("  R        Copy to clipboard + open REAPER"),
+                Line::from("  P        Copy path as text to clipboard"),
                 Line::from("  C-g      Show this help"),
                 Line::from("  Esc      Stop audio / clear marks / quit"),
                 Line::from("  q        Quit"),

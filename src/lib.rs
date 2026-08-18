@@ -31,6 +31,7 @@ struct Args {
     search: bool,
     grep: bool,
     audio: bool,
+    zoxide: bool,
     pick: bool,
     nvim: bool,
     select: Option<String>,
@@ -43,6 +44,7 @@ fn parse_args() -> io::Result<Args> {
     let mut search = false;
     let mut grep = false;
     let mut audio = false;
+    let mut zoxide = false;
     let mut pick = false;
     let mut nvim = false;
     let mut select: Option<String> = None;
@@ -53,6 +55,7 @@ fn parse_args() -> io::Result<Args> {
             "-s" | "--search" => search = true,
             "-g" | "--grep" => grep = true,
             "-f" | "--audio" => audio = true,
+            "-z" | "--zoxide" => zoxide = true,
             "-p" | "--pick" => pick = true,
             "-n" | "--nvim" => nvim = true,
             "--select" => {
@@ -74,6 +77,7 @@ fn parse_args() -> io::Result<Args> {
                 eprintln!("  -s, --search    Start in search mode (fuzzy file search)");
                 eprintln!("  -g, --grep      Start in grep mode (content search)");
                 eprintln!("  -f, --audio     Start in audio mode (audio file browser)");
+                eprintln!("  -z, --zoxide    Start in zoxide mode (directory jump list)");
                 eprintln!("  -p, --pick      Picker mode: quit on Esc or after opening");
                 eprintln!("  -n, --nvim      Emit a selection for a Neovim wrapper");
                 eprintln!(
@@ -118,6 +122,7 @@ fn parse_args() -> io::Result<Args> {
         search,
         grep,
         audio,
+        zoxide,
         pick,
         nvim,
         select,
@@ -146,6 +151,8 @@ pub fn run_cli() -> io::Result<()> {
         app.enter_grep_mode();
     } else if args.audio {
         app.enter_audio_mode();
+    } else if args.zoxide {
+        app.enter_zoxide_mode();
     }
 
     let result = run(&mut terminal, &mut app);

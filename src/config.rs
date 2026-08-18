@@ -221,7 +221,7 @@ impl Config {
                 }
             } else if let Some(value) = line.strip_prefix("audio_volume=") {
                 match value.parse::<f32>() {
-                    Ok(vol) => config.audio_volume = vol.clamp(0.0, 2.0),
+                    Ok(vol) => config.audio_volume = vol.clamp(0.0, 4.0),
                     Err(_) => warnings.push(format!("invalid audio_volume '{}'", value)),
                 }
             } else if let Some(value) = line.strip_prefix("audio_analyzer_gradient=") {
@@ -333,7 +333,7 @@ mod tests {
             show_hidden: false,
             theme: "gruvbox".to_string(),
             sort_option: SortOption::Size,
-            audio_volume: 1.5,
+            audio_volume: 3.5,
             ..Config::default()
         };
         cfg.dir_sort_cache
@@ -348,7 +348,7 @@ mod tests {
         assert!(!parsed.show_hidden);
         assert_eq!(parsed.theme, "gruvbox");
         assert_eq!(parsed.sort_option, SortOption::Size);
-        assert_eq!(parsed.audio_volume, 1.5);
+        assert_eq!(parsed.audio_volume, 3.5);
         assert_eq!(
             parsed.dir_sort_cache.get(&PathBuf::from("/tmp/x")),
             Some(&SortOption::DateModified)

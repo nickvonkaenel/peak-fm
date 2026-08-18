@@ -160,6 +160,7 @@ peak-fm [OPTIONS] [PATH]
 | `-s`, `--search` | Start in fuzzy file search |
 | `-g`, `--grep` | Start in content grep |
 | `-f`, `--audio` | Start in the audio browser |
+| `-z`, `--zoxide` | Start in zoxide mode (directory jump list) |
 | `-p`, `--pick` | Exit after opening a selection, or on `Esc` |
 | `-n`, `--nvim` | Emit a selection action for a custom Neovim wrapper |
 | `--select FILE` | Preselect a file by name |
@@ -236,6 +237,7 @@ Its output format is experimental.
 | `Ctrl+o` | Reveal the selected file with the platform file manager |
 | `C` | Copy the selected file to the system file clipboard |
 | `R` | Copy the selected file and focus REAPER |
+| `P` | Copy the selected file or folder path as text |
 | `!` | Run a shell command against the selection or marked files |
 | `w` / `#` | Toggle preview wrapping / line numbers |
 | `Ctrl+g` | Open context-sensitive help |
@@ -370,7 +372,7 @@ written to the new location.
 | `audio_autoplay` | `true` | Start playback when an audio file is selected |
 | `audio_normalize` | `false` | Normalize audio waveform playback gain |
 | `audio_skip_silence` | `false` | Skip detected silence during playback |
-| `audio_volume` | `1.0` | Linear volume, clamped from `0.0` to `2.0` |
+| `audio_volume` | `1.0` | Linear volume, clamped from `0.0` to `4.0` (+12 dB) |
 | `audio_analyzer_gradient` | `false` | Use a gradient in the spectrum analyzer |
 
 Per-directory sort overrides are stored as managed `dir_sort:<path>=<sort>`

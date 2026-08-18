@@ -55,6 +55,39 @@ impl App {
         }
     }
 
+    /// Copy the selected entry's absolute path as plain text to the system clipboard
+    pub fn copy_path_text_to_clipboard(&mut self) {
+        let Some(path) = self.current.selected_path() else {
+            self.set_status("No file selected");
+            return;
+        };
+
+        // Get absolute path
+        let absolute_path = if path.is_absolute() {
+            path.clone()
+        } else {
+            std::env::current_dir()
+                .map(|cwd| cwd.join(&path))
+                .unwrap_or(path.clone())
+        };
+
+        let path_str = absolute_path.to_string_lossy().to_string();
+        // Remove Windows extended-length path prefix \\?\
+        let path_str = path_str
+            .strip_prefix(r"\\?\")
+            .map(str::to_string)
+            .unwrap_or(path_str);
+
+        match copy_text_to_clipboard(&path_str) {
+            Ok(()) => {
+                self.set_status(format!("Copied path: {}", path_str));
+            }
+            Err(e) => {
+                self.set_status(format!("Clipboard error: {}", e));
+            }
+        }
+    }
+
     /// Copy the selected file to clipboard and activate Reaper
     pub fn copy_file_and_activate_reaper(&mut self) {
         let Some(path) = self.current.selected_path() else {
@@ -154,6 +187,21 @@ pub fn copy_paths_to_clipboard(paths: &[String]) -> std::result::Result<(), Stri
     return Err("Clipboard not supported on this platform".to_string());
 }
 
+/// Copy plain text to the system clipboard
+pub fn copy_text_to_clipboard(text: &str) -> std::result::Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return copy_text_to_clipboard_macos(text);
+
+    #[cfg(target_os = "windows")]
+    return copy_text_to_clipboard_windows(text);
+
+    #[cfg(target_os = "linux")]
+    return copy_text_to_clipboard_linux(text);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    return Err("Clipboard not supported on this platform".to_string());
+}
+
 /// Activate Reaper application
 pub fn activate_reaper() -> std::result::Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -214,6 +262,27 @@ fn copy_paths_to_clipboard_macos(paths: &[String]) -> Result<(), String> {
 }
 
 #[cfg(target_os = "macos")]
+fn copy_text_to_clipboard_macos(text: &str) -> Result<(), String> {
+    use std::io::Write;
+
+    let mut child = Command::new("pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    if let Some(ref mut stdin) = child.stdin {
+        stdin.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+    }
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("pbcopy failed".to_string())
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn activate_reaper_macos() -> Result<(), String> {
     let script = r#"tell application "REAPER" to activate"#;
     let output = Command::new("osascript")
@@ -266,6 +335,26 @@ fn copy_paths_to_clipboard_windows(paths: &[String]) -> std::result::Result<(), 
 
     formats::FileList
         .write_clipboard(&clean_paths)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn copy_text_to_clipboard_windows(text: &str) -> std::result::Result<(), String> {
+    use clipboard_win::{formats, Clipboard, Setter};
+
+    let _clip = Clipboard::new_attempts(10).map_err(|e| e.to_string())?;
+
+    // Empty clipboard to clear all formats (including custom Reaper formats)
+    unsafe {
+        if EmptyClipboard().is_err() {
+            return Err("Failed to empty clipboard".to_string());
+        }
+    }
+
+    formats::Unicode
+        .write_clipboard(&text)
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -399,6 +488,44 @@ fn copy_paths_to_clipboard_linux(paths: &[String]) -> Result<(), String> {
         .and_then(|mut child| {
             if let Some(ref mut stdin) = child.stdin {
                 stdin.write_all(content.as_bytes())?;
+            }
+            child.wait()
+        });
+
+    if wl_result.is_ok() {
+        return Ok(());
+    }
+
+    Err("Neither xclip nor wl-copy available".to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn copy_text_to_clipboard_linux(text: &str) -> Result<(), String> {
+    use std::io::Write;
+
+    // Try xclip first (X11)
+    let xclip_result = Command::new("xclip")
+        .args(["-selection", "clipboard"])
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            if let Some(ref mut stdin) = child.stdin {
+                stdin.write_all(text.as_bytes())?;
+            }
+            child.wait()
+        });
+
+    if xclip_result.is_ok() {
+        return Ok(());
+    }
+
+    // If xclip fails, try wl-copy (Wayland)
+    let wl_result = Command::new("wl-copy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            if let Some(ref mut stdin) = child.stdin {
+                stdin.write_all(text.as_bytes())?;
             }
             child.wait()
         });
