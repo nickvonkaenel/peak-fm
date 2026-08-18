@@ -271,7 +271,9 @@ fn copy_text_to_clipboard_macos(text: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if let Some(ref mut stdin) = child.stdin {
-        stdin.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|e| e.to_string())?;
     }
 
     let status = child.wait().map_err(|e| e.to_string())?;
