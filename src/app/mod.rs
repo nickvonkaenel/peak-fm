@@ -855,6 +855,15 @@ impl App {
         self.current = Pane::new(path.clone(), entries);
         self.cwd = path.clone();
 
+        // Train zoxide's frecency database like a shell cd would, in the
+        // background so navigation never blocks (skip the private trash)
+        if fs::trash_dir().map_or(true, |t| t != path) {
+            let zoxide_path = path.clone();
+            std::thread::spawn(move || {
+                let _ = Command::new("zoxide").arg("add").arg(&zoxide_path).output();
+            });
+        }
+
         // Restore operations for this directory if any exist
         self.restore_operations_to_buffer();
 

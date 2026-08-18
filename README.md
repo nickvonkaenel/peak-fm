@@ -52,7 +52,7 @@ command enables a specific integration:
 | `nvim` | Opens text files and directories; also edits the FFmpeg job template |
 | `csvlens` | Opens `.csv` files with `csvlens --ignore-case` |
 | `rg` | Powers content grep (`g`, `G`, and `--grep`) |
-| `zoxide` | Powers directory jumping with `z` |
+| `zoxide` | Powers directory jumping with `z`; browsing also trains its frecency database |
 | `git` | Built-in status, pull, push, and commit actions |
 | `lazygit` | Opens the lazygit TUI with `Space`, then `l` |
 | `ffprobe` and `ffmpeg` | Media inspection and the FFmpeg editor |

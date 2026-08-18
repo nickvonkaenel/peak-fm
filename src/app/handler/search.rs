@@ -112,6 +112,18 @@ pub(super) fn handle_find(app: &mut App, key: KeyEvent) -> io::Result<()> {
         (KeyCode::Char('n'), KeyModifiers::CONTROL) => {
             app.find_navigate()?;
         }
+        // Zoxide mode: remove selected directory from zoxide database (Ctrl+x)
+        (KeyCode::Char('x'), KeyModifiers::CONTROL) if app.zoxide_mode => {
+            app.zoxide_remove_selected();
+        }
+        // Zoxide mode: boost selected directory's score (Ctrl+a)
+        (KeyCode::Char('a'), KeyModifiers::CONTROL) if app.zoxide_mode => {
+            app.zoxide_boost_selected();
+        }
+        // Zoxide mode: prune entries for deleted directories (Ctrl+r)
+        (KeyCode::Char('r'), KeyModifiers::CONTROL) if app.zoxide_mode => {
+            app.zoxide_prune_dead();
+        }
         // Delete character
         (KeyCode::Backspace, _) | (KeyCode::Char('h'), KeyModifiers::CONTROL) => {
             app.find_pop_char();

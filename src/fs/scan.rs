@@ -217,6 +217,7 @@ pub fn spawn_recursive_scan(
                     path,
                     display,
                     is_dir,
+                    score: None,
                 };
 
                 if tx.send(search_entry).is_err() {
@@ -271,6 +272,7 @@ fn process_walk_entry(
         path,
         display,
         is_dir,
+        score: None,
     })
 }
 

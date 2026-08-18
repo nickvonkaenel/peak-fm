@@ -35,6 +35,9 @@ pub(super) fn render_help(frame: &mut Frame, area: Rect, app: &App) {
                 Line::from("  Enter    Open selected file"),
                 Line::from("  C-n      Navigate to file location"),
                 Line::from("  C-p      Play/pause audio (if audio file)"),
+                Line::from("  C-x      Remove from zoxide (zoxide mode)"),
+                Line::from("  C-a      Boost zoxide score (zoxide mode)"),
+                Line::from("  C-r      Prune dead zoxide entries (zoxide mode)"),
                 Line::from(""),
                 Line::from(Span::styled(
                     "Editing Query",
@@ -52,7 +55,7 @@ pub(super) fn render_help(frame: &mut Frame, area: Rect, app: &App) {
                 Line::from("  C-g      Open settings"),
                 Line::from("  Esc      Exit search mode"),
             ],
-            22.min(area.height.saturating_sub(4)),
+            25.min(area.height.saturating_sub(4)),
         )
     } else {
         (

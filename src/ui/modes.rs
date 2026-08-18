@@ -303,7 +303,24 @@ pub(super) fn render_find_mode(frame: &mut Frame, area: Rect, app: &mut App) {
                     }
                 }
 
-                ListItem::new(Line::from(spans))
+                let mut line = Line::from(spans);
+
+                // Zoxide mode: show the frecency score right-aligned and dim
+                if app.zoxide_mode {
+                    if let Some(ref score) = entry.score {
+                        let inner_width = results_area.width.saturating_sub(2) as usize;
+                        let used = line.width();
+                        let score_width = score.chars().count();
+                        // Need at least one space between path and score
+                        if used + score_width < inner_width {
+                            let pad = inner_width - used - score_width;
+                            line.spans.push(Span::styled(" ".repeat(pad), base_style));
+                            line.spans.push(Span::styled(score.clone(), folder_style));
+                        }
+                    }
+                }
+
+                ListItem::new(line)
             })
             .collect();
 

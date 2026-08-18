@@ -14,6 +14,8 @@ pub struct SearchEntry {
     pub display: String,
     /// Whether this is a directory
     pub is_dir: bool,
+    /// Frecency score as reported by zoxide (zoxide mode only)
+    pub score: Option<String>,
 }
 
 /// State for the search mode using nucleo's parallel matcher

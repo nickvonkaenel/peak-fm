@@ -115,26 +115,9 @@ impl App {
     }
 
     pub fn enter_zoxide_mode(&mut self) {
-        // Get directories from zoxide
-        let output = Command::new("zoxide").args(["query", "-l"]).output();
-
-        let entries: Vec<SearchEntry> = match output {
-            Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .map(|line| {
-                    let path = PathBuf::from(line);
-                    let display = line.to_string();
-                    SearchEntry {
-                        path,
-                        display,
-                        is_dir: true,
-                    }
-                })
-                .collect(),
-            Ok(_) => {
-                self.set_status("zoxide returned no results");
-                return;
-            }
+        // Get directories from zoxide (with scores, excluding the current dir)
+        let entries = match self.query_zoxide("") {
+            Ok(entries) => entries,
             Err(e) => {
                 self.set_status(format!("zoxide error: {}", e));
                 return;
@@ -160,6 +143,46 @@ impl App {
         self.zoxide_mode = true;
         self.mode = Mode::Find;
         self.set_status(format!("{} directories", dir_count));
+    }
+
+    /// Remove the selected directory from the zoxide database (zoxide mode only)
+    pub fn zoxide_remove_selected(&mut self) {
+        if !self.zoxide_mode {
+            return;
+        }
+
+        let (path, selected, scroll_offset) = match self.find_state.as_ref() {
+            Some(state) => match state.selected_entry() {
+                // Use the display string (the exact line zoxide emitted) so
+                // the removal matches the database entry
+                Some(entry) => (entry.display.clone(), state.selected, state.scroll_offset),
+                None => return,
+            },
+            None => return,
+        };
+
+        let output = Command::new("zoxide").args(["remove", &path]).output();
+
+        match output {
+            Ok(output) if output.status.success() => {
+                self.refresh_zoxide_results();
+                // refresh resets the cursor to the top; put it back near
+                // where it was, clamped to the shorter list
+                if let Some(ref mut state) = self.find_state {
+                    state.set_selection(selected, scroll_offset);
+                    state.move_selection(0, false);
+                }
+                self.refresh_find_preview();
+                self.set_status(format!("Removed from zoxide: {}", path));
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr);
+                self.set_status(format!("zoxide remove failed: {}", err.trim()));
+            }
+            Err(e) => {
+                self.set_status(format!("zoxide error: {}", e));
+            }
+        }
     }
 
     pub fn find_toggle_hidden(&mut self) {
@@ -329,6 +352,29 @@ impl App {
         self.refresh_find_preview();
     }
 
+    /// Run `zoxide query -l --score` (excluding the current directory) and
+    /// parse the output into entries. `query` may be empty to list everything.
+    fn query_zoxide(&self, query: &str) -> io::Result<Vec<SearchEntry>> {
+        let mut cmd = Command::new("zoxide");
+        cmd.args(["query", "-l", "--score"])
+            .arg("--exclude")
+            .arg(self.cwd.as_os_str());
+        if !query.is_empty() {
+            cmd.arg(query);
+        }
+
+        let output = cmd.output()?;
+        if !output.status.success() {
+            // zoxide exits non-zero when nothing matches; treat as empty
+            return Ok(Vec::new());
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter_map(parse_zoxide_score_line)
+            .collect())
+    }
+
     /// Re-query zoxide with the current search query
     fn refresh_zoxide_results(&mut self) {
         let query = match self.find_state.as_ref() {
@@ -336,59 +382,116 @@ impl App {
             None => return,
         };
 
-        // Query zoxide with pattern (or list all if empty)
-        let output = if query.is_empty() {
-            Command::new("zoxide").args(["query", "-l"]).output()
-        } else {
-            Command::new("zoxide")
-                .args(["query", "-l", "--score", &query])
-                .output()
-        };
-
-        let entries: Vec<SearchEntry> = match output {
-            Ok(output) if output.status.success() => {
-                String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .filter_map(|line| {
-                        // With --score, format is "  <score> <path>" (whitespace-separated)
-                        // Without --score, format is "<path>"
-                        let path_str = if query.is_empty() {
-                            line.to_string()
-                        } else {
-                            // Skip the score prefix by splitting on whitespace
-                            // The score is the first token, everything after is the path
-                            let trimmed = line.trim_start();
-                            trimmed
-                                .split_once(char::is_whitespace)
-                                .and_then(|(_, rest)| {
-                                    let path = rest.trim_start();
-                                    if path.is_empty() {
-                                        None
-                                    } else {
-                                        Some(path.to_string())
-                                    }
-                                })
-                                .unwrap_or_else(|| trimmed.to_string())
-                        };
-                        if path_str.is_empty() {
-                            return None;
-                        }
-                        let path = PathBuf::from(&path_str);
-                        Some(SearchEntry {
-                            path,
-                            display: path_str,
-                            is_dir: true,
-                        })
-                    })
-                    .collect()
-            }
-            _ => Vec::new(),
-        };
+        let entries = self.query_zoxide(&query).unwrap_or_default();
 
         // Update the state with new entries (skip nucleo, just show in order)
         if let Some(ref mut state) = self.find_state {
             state.replace_entries(entries);
         }
+    }
+
+    /// Boost the selected directory's zoxide score (zoxide mode only)
+    pub fn zoxide_boost_selected(&mut self) {
+        if !self.zoxide_mode {
+            return;
+        }
+
+        let (path, selected, scroll_offset) = match self.find_state.as_ref() {
+            Some(state) => match state.selected_entry() {
+                Some(entry) => (entry.display.clone(), state.selected, state.scroll_offset),
+                None => return,
+            },
+            None => return,
+        };
+
+        let output = Command::new("zoxide").args(["add", &path]).output();
+
+        match output {
+            Ok(output) if output.status.success() => {
+                self.refresh_zoxide_results();
+                if let Some(ref mut state) = self.find_state {
+                    state.set_selection(selected, scroll_offset);
+                    state.move_selection(0, false);
+                }
+                self.refresh_find_preview();
+                self.set_status(format!("Boosted: {}", path));
+            }
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr);
+                self.set_status(format!("zoxide add failed: {}", err.trim()));
+            }
+            Err(e) => {
+                self.set_status(format!("zoxide error: {}", e));
+            }
+        }
+    }
+
+    /// Remove zoxide entries whose directories no longer exist (zoxide mode only)
+    pub fn zoxide_prune_dead(&mut self) {
+        if !self.zoxide_mode {
+            return;
+        }
+
+        // --all includes entries for directories that no longer exist
+        let output = Command::new("zoxide")
+            .args(["query", "-l", "--all"])
+            .output();
+
+        let dead: Vec<String> = match output {
+            Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .filter(|line| !line.is_empty() && !PathBuf::from(line).is_dir())
+                .map(|line| line.to_string())
+                .collect(),
+            Ok(output) => {
+                let err = String::from_utf8_lossy(&output.stderr);
+                self.set_status(format!("zoxide query failed: {}", err.trim()));
+                return;
+            }
+            Err(e) => {
+                self.set_status(format!("zoxide error: {}", e));
+                return;
+            }
+        };
+
+        if dead.is_empty() {
+            self.set_status("No dead entries in zoxide database");
+            return;
+        }
+
+        // Remove in chunks to stay well under command line length limits
+        let mut removed = 0;
+        for chunk in dead.chunks(50) {
+            match Command::new("zoxide").arg("remove").args(chunk).output() {
+                Ok(output) if output.status.success() => removed += chunk.len(),
+                Ok(output) => {
+                    let err = String::from_utf8_lossy(&output.stderr);
+                    self.set_status(format!("zoxide remove failed: {}", err.trim()));
+                    return;
+                }
+                Err(e) => {
+                    self.set_status(format!("zoxide error: {}", e));
+                    return;
+                }
+            }
+        }
+
+        let (selected, scroll_offset) = self
+            .find_state
+            .as_ref()
+            .map(|s| (s.selected, s.scroll_offset))
+            .unwrap_or((0, 0));
+        self.refresh_zoxide_results();
+        if let Some(ref mut state) = self.find_state {
+            state.set_selection(selected, scroll_offset);
+            state.move_selection(0, false);
+        }
+        self.refresh_find_preview();
+        self.set_status(format!(
+            "Pruned {} dead {} from zoxide",
+            removed,
+            if removed == 1 { "entry" } else { "entries" }
+        ));
     }
 
     /// Poll the background scanner and tick nucleo for matching.
@@ -610,4 +713,20 @@ impl App {
             }
         }
     }
+}
+
+/// Parse one line of `zoxide query -l --score` output: "  <score> <path>"
+fn parse_zoxide_score_line(line: &str) -> Option<SearchEntry> {
+    let trimmed = line.trim_start();
+    let (score, rest) = trimmed.split_once(char::is_whitespace)?;
+    let path_str = rest.trim_start();
+    if path_str.is_empty() {
+        return None;
+    }
+    Some(SearchEntry {
+        path: PathBuf::from(path_str),
+        display: path_str.to_string(),
+        is_dir: true,
+        score: Some(score.to_string()),
+    })
 }
