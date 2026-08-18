@@ -1,3 +1,6 @@
+https://github.com/user-attachments/assets/c5ceecbb-f55b-4d7e-b420-1ead1c1a45d0
+
+https://github.com/user-attachments/assets/7501eeb4-d414-4c74-9ff8-988207e0e594
 # Peak File Manager
 
 Peak File Manager (`pk`, also available as `peak-fm`) is a fast, keyboard-first
