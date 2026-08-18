@@ -75,6 +75,11 @@ pub(super) fn handle_visual(app: &mut App, key: KeyEvent, anchor: usize) -> io::
             app.copy_visual_selection_and_activate_reaper(anchor);
         }
 
+        // Copy selected paths as text to clipboard
+        KeyCode::Char('P') => {
+            app.copy_visual_selection_paths_to_clipboard(anchor);
+        }
+
         // Delete selected
         KeyCode::Char('d') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.delete_visual_selection(anchor);

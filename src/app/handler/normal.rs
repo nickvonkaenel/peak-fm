@@ -244,6 +244,10 @@ pub(super) fn handle_normal(app: &mut App, key: KeyEvent) -> io::Result<()> {
         KeyCode::Char('R') => {
             app.copy_file_and_activate_reaper();
         }
+        // Copy path as text to clipboard (Shift+P)
+        KeyCode::Char('P') => {
+            app.copy_path_text_to_clipboard();
+        }
 
         // Quit (q or Ctrl+c)
         KeyCode::Char('q') => {
